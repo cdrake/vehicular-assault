@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { Link } from "react-router-dom"
 import { Engine, Scene } from "react-babylonjs"
 
 // Babylon core
@@ -65,33 +66,29 @@ const App: React.FC = () => {
     })
   }, [sceneReady])
 
-  const onSceneReady = useCallback(
-    (scene: BabylonScene) => {
-      if (sceneRef.current) {
-        // Ignore React 18/19 StrictMode duplicate render
-        return
-      }
+  const onSceneReady = useCallback((scene: BabylonScene) => {
+    console.log("✅ Scene initialized.")
+    scene.clearColor = new Color4(0.05, 0.05, 0.05, 1)
+    sceneRef.current = scene
+    setSceneReady(true)
 
-      console.log("✅ Scene initialized.")
-      sceneRef.current = scene
-      setSceneReady(true)
+    const plugin = new CannonJSPlugin(true, 10, CANNON)
+    scene.enablePhysics(new Vector3(0, -9.81, 0), plugin)
+    setPhysicsEngine(scene.getPhysicsEngine())
+  }, [])
 
-      // Enable physics
-      const plugin = new CannonJSPlugin(true, 10, CANNON)
-      scene.enablePhysics(new Vector3(0, -9.81, 0), plugin)
-      const physicsEngine = scene.getPhysicsEngine()
-      setPhysicsEngine(physicsEngine)
+  useEffect(() => {
+    if (!sceneRef.current || !sceneReady) return
+    if (!materials || Object.keys(materials).length === 0) return
 
-      // Load map once
-      createMapFromJson(
-        scene,
-        defaultMapData as unknown as MapData,
-        materials,
-        physicsEngine
-      )
-    },
-    [materials]
-  )
+    console.log("✅ Loading map with materials:", Object.keys(materials))
+    createMapFromJson(
+      sceneRef.current,
+      defaultMapData as unknown as MapData,
+      materials,
+      physicsEngine
+    )
+  }, [sceneReady, materials, physicsEngine])
 
   return (
     <div
@@ -103,6 +100,22 @@ const App: React.FC = () => {
         overflow: "hidden",
       }}
     >
+      <Link
+        to="/customize"
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "10px",
+          backgroundColor: "#222",
+          color: "#fff",
+          padding: "10px 20px",
+          textDecoration: "none",
+          borderRadius: "5px",
+          zIndex: 999,
+        }}
+      >
+        Customize
+      </Link>
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <Scene onCreated={onSceneReady}>
           <arcRotateCamera
