@@ -1,0 +1,156 @@
+{
+  "name": "Default Test Map",
+  "description": "A 50x50 map with walls and a center pillar.",
+  "primitives": [
+    {
+      "type": "ground",
+      "name": "groundPlane",
+      "size": {
+        "width": 50,
+        "height": 50,
+        "subdivisions": 2
+      },
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "concrete",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      },
+      "metadata": {
+        "type": "floor"
+      }
+    },
+    {
+      "type": "box",
+      "name": "wallNorth",
+      "size": {
+        "width": 50,
+        "height": 4,
+        "depth": 0.5
+      },
+      "position": {
+        "x": 0,
+        "y": 2,
+        "z": -25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "wall",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      }
+    },
+    {
+      "type": "box",
+      "name": "wallSouth",
+      "size": {
+        "width": 50,
+        "height": 4,
+        "depth": 0.5
+      },
+      "position": {
+        "x": 0,
+        "y": 2,
+        "z": 25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "wall",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      }
+    },
+    {
+      "type": "box",
+      "name": "wallEast",
+      "size": {
+        "width": 0.5,
+        "height": 4,
+        "depth": 50
+      },
+      "position": {
+        "x": 25,
+        "y": 2,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "wall",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      }
+    },
+    {
+      "type": "box",
+      "name": "wallWest",
+      "size": {
+        "width": 0.5,
+        "height": 4,
+        "depth": 50
+      },
+      "position": {
+        "x": -25,
+        "y": 2,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "wall",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      }
+    },
+    {
+      "type": "cylinder",
+      "name": "centerPillar",
+      "size": {
+        "diameterTop": 1,
+        "diameterBottom": 1,
+        "height": 5
+      },
+      "position": {
+        "x": 0,
+        "y": 2.5,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "material": "metal",
+      "physics": {
+        "mass": 0,
+        "collision": true
+      },
+      "metadata": {
+        "destructible": true
+      }
+    }
+  ]
+}
