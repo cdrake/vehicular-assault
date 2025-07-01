@@ -24,6 +24,7 @@ const VFX: React.FC = () => {
   const soundRef = useRef<StaticSound | null>(null)
   const sceneRef = useRef<BabylonScene | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
 
   // 📌 Scene Setup
   const handleSceneReady = async (scene: BabylonScene) => {
@@ -75,10 +76,10 @@ const VFX: React.FC = () => {
     // Load sound (but don't play)
     const sparksSound = await CreateSoundAsync(
       "sparksSound",
-      import.meta.env.BASE_URL + "assets/sounds/sparks.wav",      
+      import.meta.env.BASE_URL + "assets/sounds/sparks.wav",
       {
         loop: true,
-        volume: 2.0
+        volume: 2.0,
       }
     )
     soundRef.current = sparksSound
@@ -157,35 +158,43 @@ const VFX: React.FC = () => {
         }}
         disabled={!isReady}
         onClick={async () => {
-          if (!audioEngineRef.current) {
-            console.log("⚠️ No AudioEngine yet")
-            return
-          }
-          if (!soundRef.current) {
-            console.log("⚠️ Sound not loaded yet")
-            return
-          }
-          if (!particleSystemRef.current) {
-            console.log("⚠️ Particle system not ready")
+          if (
+            !audioEngineRef.current ||
+            !soundRef.current ||
+            !particleSystemRef.current
+          ) {
+            console.log("⚠️ Not ready yet")
             return
           }
 
           try {
-            console.log("🔓 Unlocking AudioEngine...")
-            await audioEngineRef.current.unlockAsync()
-            console.log("✅ AudioEngine unlocked")
+            if (!isPlaying) {
+              // 🔓 Unlock AudioEngine (browser policy)
+              await audioEngineRef.current.unlockAsync()
+              console.log("✅ AudioEngine unlocked")
 
-            soundRef.current.play()
-            console.log("✅ Sound playing")
+              soundRef.current.play()
+              console.log("✅ Sound playing")
 
-            particleSystemRef.current.start()
-            console.log("✅ Particle system started")
+              particleSystemRef.current.start()
+              console.log("✅ Particle system started")
+
+              setIsPlaying(true)
+            } else {
+              soundRef.current.stop()
+              console.log("🛑 Sound stopped")
+
+              particleSystemRef.current.stop()
+              console.log("🛑 Particle system stopped")
+
+              setIsPlaying(false)
+            }
           } catch (err) {
-            console.error("❌ Failed to start sound or particles", err)
+            console.error("❌ Error toggling VFX and sound", err)
           }
         }}
       >
-        {isReady ? "Start VFX and Sound" : "Loading..."}
+        {isPlaying ? "Stop VFX and Sound" : "Start VFX and Sound"}
       </button>
 
       <Engine antialias adaptToDeviceRatio canvasId="babylon-vfx-canvas">
