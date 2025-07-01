@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { Engine, Scene } from "react-babylonjs"
 
 // Babylon core
-import { Scene as BabylonScene } from "@babylonjs/core/scene"
+import { Scene as BabylonScene, ArcRotateCamera, UniversalCamera } from "@babylonjs/core"
 import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math"
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial"
 import { CannonJSPlugin } from "@babylonjs/core/Physics/Plugins/cannonJSPlugin"
@@ -21,38 +21,38 @@ import defaultMapData from "./assets/maps/defaultMap.json"
 import type { MapData } from "./components/MapLoader"
 
 const App: React.FC = () => {
-  const [sceneReady, setSceneReady] = useState(false)
+  // App state
+  const [activeCamera, setActiveCamera] = useState<"orbit" | "free">("orbit")
+  const [carPosition, setCarPosition] = useState(new Vector3(20, 0.8, 0))
+
+  const [orbitCamera, setOrbitCamera] = useState<ArcRotateCamera | null>(null)
+  const [freeCamera, setFreeCamera] = useState<UniversalCamera | null>(null)
+  const [scene, setScene] = useState<BabylonScene | null>(null)
+
   const sceneRef = useRef<BabylonScene | null>(null)
 
-  const [materials, setMaterials] = useState<Record<string, StandardMaterial>>(
-    {}
-  )
+  const [materials, setMaterials] = useState<Record<string, StandardMaterial>>({})
+  const [physicsEngine, setPhysicsEngine] = useState<IPhysicsEngine | null>(null)
 
-  const [physicsEngine, setPhysicsEngine] = useState<IPhysicsEngine | null>(
-    null
-  )
-
+  // Setup materials when scene is ready
   useEffect(() => {
     if (!sceneRef.current) return
 
     const scene = sceneRef.current
     scene.clearColor = new Color4(0.05, 0.05, 0.05, 1)
 
-    // Ground: dark, unlit
     const concreteMat = new StandardMaterial("concrete", scene)
     concreteMat.diffuseColor = new Color3(0, 0, 0)
     concreteMat.emissiveColor = new Color3(0.08, 0.08, 0.08)
     concreteMat.specularColor = new Color3(0, 0, 0)
     concreteMat.ambientColor = new Color3(0, 0, 0)
 
-    // Walls: medium gray, unlit
     const wallMat = new StandardMaterial("wall", scene)
     wallMat.diffuseColor = new Color3(0, 0, 0)
     wallMat.emissiveColor = new Color3(0.4, 0.4, 0.4)
     wallMat.specularColor = new Color3(0, 0, 0)
     wallMat.ambientColor = new Color3(0, 0, 0)
 
-    // Metal pillar: still lit for shine
     const metalMat = new StandardMaterial("metal", scene)
     metalMat.diffuseColor = new Color3(0.8, 0.8, 0.9)
     metalMat.specularColor = new Color3(0.4, 0.4, 0.4)
@@ -64,31 +64,51 @@ const App: React.FC = () => {
       wall: wallMat,
       metal: metalMat,
     })
-  }, [sceneReady])
+  }, [scene])
 
+  // Initialize scene
   const onSceneReady = useCallback((scene: BabylonScene) => {
     console.log("✅ Scene initialized.")
-    scene.clearColor = new Color4(0.05, 0.05, 0.05, 1)
     sceneRef.current = scene
-    setSceneReady(true)
+    setScene(scene)
 
+    scene.clearColor = new Color4(0.05, 0.05, 0.05, 1)
     const plugin = new CannonJSPlugin(true, 10, CANNON)
     scene.enablePhysics(new Vector3(0, -9.81, 0), plugin)
     setPhysicsEngine(scene.getPhysicsEngine())
   }, [])
 
+  // Load map once scene and materials are ready
   useEffect(() => {
-    if (!sceneRef.current || !sceneReady) return
-    if (!materials || Object.keys(materials).length === 0) return
+    if (!scene || Object.keys(materials).length === 0) return
 
     console.log("✅ Loading map with materials:", Object.keys(materials))
     createMapFromJson(
-      sceneRef.current,
+      scene,
       defaultMapData as unknown as MapData,
       materials,
       physicsEngine
     )
-  }, [sceneReady, materials, physicsEngine])
+  }, [scene, materials, physicsEngine])
+
+  // Handle camera switching
+  useEffect(() => {
+    if (!scene) return
+    if (activeCamera === "orbit" && orbitCamera) {
+      console.log("🎯 Switching to ORBIT camera")
+      scene.activeCamera = orbitCamera
+      orbitCamera.attachControl(true)
+      freeCamera?.detachControl()
+      orbitCamera.setTarget(carPosition)
+    }
+    if (activeCamera === "free" && freeCamera) {
+      console.log("🎯 Switching to FREE camera")
+      scene.activeCamera = freeCamera
+      freeCamera.attachControl(true)
+      orbitCamera?.detachControl()
+      freeCamera.setTarget(new Vector3(0, 0, 0))
+    }
+  }, [scene, activeCamera, orbitCamera, freeCamera, carPosition])
 
   return (
     <div
@@ -116,28 +136,65 @@ const App: React.FC = () => {
       >
         Customize
       </Link>
+      <button
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
+          zIndex: 999,
+          padding: "10px 20px",
+          backgroundColor: "#222",
+          color: "#fff",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          setActiveCamera((prev) => (prev === "orbit" ? "free" : "orbit"))
+        }}
+      >
+        Switch Camera
+      </button>
+
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <Scene onCreated={onSceneReady}>
+          <arcRotateCamera
+            name="ArcCamera"
+            alpha={Math.PI / 4}
+            beta={Math.PI / 3}
+            radius={40}
+            target={carPosition}
+            minZ={0.1}
+            wheelPrecision={50}
+            onCreated={(camera) => {
+              setOrbitCamera(camera)
+              if (scene && activeCamera === "orbit") {
+                scene.activeCamera = camera
+              }
+            }}
+          />
+
           <universalCamera
-  name="UniversalCamera"
-  position={new Vector3(49, 40, 49)}
-  minZ={0.1}
-  speed={3}
-  keysUp={[87]}
-  keysDown={[83]}
-  keysLeft={[65]}
-  keysRight={[68]}
-  onCreated={(camera) => {
-    camera.attachControl(true)
-    camera.setTarget(new Vector3(0, 0, 0))
-    camera.fov = 0.8
-    camera.getScene().onBeforeRenderObservable.add(() => {
-      if (camera.position.y < 0) {
-        camera.position.y = 0
-      }
-    })
-  }}
-/>
+            name="UniversalCamera"
+            position={new Vector3(49, 40, 49)}
+            minZ={0.1}
+            speed={3}
+            keysUp={[87]}
+            keysDown={[83]}
+            keysLeft={[65]}
+            keysRight={[68]}
+            onCreated={(camera) => {
+              setFreeCamera(camera)
+              if (scene && activeCamera === "free") {
+                scene.activeCamera = camera
+              }
+              camera.getScene().onBeforeRenderObservable.add(() => {
+                if (camera.position.y < 0) {
+                  camera.position.y = 0
+                }
+              })
+            }}
+          />
 
           <directionalLight
             name="DirectionalLight"
@@ -154,8 +211,9 @@ const App: React.FC = () => {
           />
 
           <PlayerCar
-            position={new Vector3(20, 0.8, 0)}
+            position={carPosition}
             scale={new Vector3(1, 1, 1)}
+            onPositionUpdate={setCarPosition}
           />
         </Scene>
       </Engine>

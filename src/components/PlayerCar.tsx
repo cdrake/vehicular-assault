@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Vector3 } from '@babylonjs/core'
 import { Model } from 'react-babylonjs'
 import '@babylonjs/loaders/glTF/2.0/glTFLoader'  // important!
@@ -6,16 +6,25 @@ import '@babylonjs/loaders/glTF/2.0/glTFLoader'  // important!
 interface PlayerCarProps {
   position: Vector3
   scale: Vector3
+  onPositionUpdate?: (pos: Vector3) => void
 }
 
-const PlayerCar: React.FC<PlayerCarProps> = ({ position, scale }) => (
-  <Model
-    name='player-car'
-    rootUrl='/vehicular-assault/assets/models/'
-    sceneFilename='player_car.glb'
-    position={position}
-    scaling={scale}
-  />
-)
+const PlayerCar: React.FC<PlayerCarProps> = ({ position, scale, onPositionUpdate }) => {
+  useEffect(() => {
+    if (onPositionUpdate) {
+      onPositionUpdate(position)
+    }
+  }, [position, onPositionUpdate])
+
+  return (
+    <Model
+      name='player-car'
+      rootUrl='/vehicular-assault/assets/models/'
+      sceneFilename='player_car.glb'
+      position={position}
+      scaling={scale}
+    />
+  )
+}
 
 export default PlayerCar
