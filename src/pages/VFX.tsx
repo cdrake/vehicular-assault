@@ -2,11 +2,9 @@ import React, { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { Engine, Scene } from "react-babylonjs"
 import {
-  ArcRotateCamera,
   Color3,
   Color4,
   Vector3,
-  HemisphericLight,
   MeshBuilder,
   Texture,
   ParticleSystem,
@@ -14,12 +12,11 @@ import {
   CreateAudioEngineAsync,
   CreateSoundAsync,
 } from "@babylonjs/core"
-import type { AudioEngineV2 } from "@babylonjs/core"
-import type { StaticSound } from "@babylonjs/core/Audio/sound"
+import type { AudioEngineV2, Mesh, StaticSound } from "@babylonjs/core"
 
 const VFX: React.FC = () => {
   const particleSystemRef = useRef<ParticleSystem | null>(null)
-  const emitterRef = useRef<any>(null)
+  const emitterRef = useRef<Mesh | null>(null)
   const audioEngineRef = useRef<AudioEngineV2 | null>(null)
   const soundRef = useRef<StaticSound | null>(null)
   const sceneRef = useRef<BabylonScene | null>(null)
