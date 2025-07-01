@@ -118,18 +118,27 @@ const App: React.FC = () => {
       </Link>
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <Scene onCreated={onSceneReady}>
-          <arcRotateCamera
-            name="Camera"
-            target={new Vector3(0, 0, 0)}
-            alpha={Math.PI / 4}
-            beta={Math.PI / 3}
-            radius={80}
-            minZ={0.1}
-            wheelPrecision={50}
-            onCreated={(camera) => {
-              camera.attachControl(true)
-            }}
-          />
+          <universalCamera
+  name="UniversalCamera"
+  position={new Vector3(49, 40, 49)}
+  minZ={0.1}
+  speed={3}
+  keysUp={[87]}
+  keysDown={[83]}
+  keysLeft={[65]}
+  keysRight={[68]}
+  onCreated={(camera) => {
+    camera.attachControl(true)
+    camera.setTarget(new Vector3(0, 0, 0))
+    camera.fov = 0.8
+    camera.getScene().onBeforeRenderObservable.add(() => {
+      if (camera.position.y < 0) {
+        camera.position.y = 0
+      }
+    })
+  }}
+/>
+
           <directionalLight
             name="DirectionalLight"
             direction={new Vector3(-1, -2, -1)}
