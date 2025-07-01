@@ -199,6 +199,8 @@ const App: React.FC = () => {
             alpha={Math.PI / 4}
             beta={Math.PI / 3}
             radius={40}
+            lowerBetaLimit={0.01}
+            upperBetaLimit={Math.PI / 2.1}
             target={carPosition}
             minZ={0.1}
             wheelPrecision={50}
