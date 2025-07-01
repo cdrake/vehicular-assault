@@ -3,7 +3,11 @@ import { Link } from "react-router-dom"
 import { Engine, Scene } from "react-babylonjs"
 
 // Babylon core
-import { Scene as BabylonScene, ArcRotateCamera, UniversalCamera } from "@babylonjs/core"
+import {
+  Scene as BabylonScene,
+  ArcRotateCamera,
+  UniversalCamera,
+} from "@babylonjs/core"
 import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math"
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial"
 import { CannonJSPlugin } from "@babylonjs/core/Physics/Plugins/cannonJSPlugin"
@@ -31,8 +35,24 @@ const App: React.FC = () => {
 
   const sceneRef = useRef<BabylonScene | null>(null)
 
-  const [materials, setMaterials] = useState<Record<string, StandardMaterial>>({})
-  const [physicsEngine, setPhysicsEngine] = useState<IPhysicsEngine | null>(null)
+  const [materials, setMaterials] = useState<Record<string, StandardMaterial>>(
+    {}
+  )
+  const [physicsEngine, setPhysicsEngine] = useState<IPhysicsEngine | null>(
+    null
+  )
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "c" || e.key === "C") {
+        setActiveCamera((prev) => (prev === "orbit" ? "free" : "orbit"))
+        console.log("✅ Camera toggled with keyboard")
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   // Setup materials when scene is ready
   useEffect(() => {
