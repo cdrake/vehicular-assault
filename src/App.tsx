@@ -156,6 +156,22 @@ const App: React.FC = () => {
       >
         Customize
       </Link>
+      <Link
+        to="/vfx"
+        style={{
+          position: "absolute",
+          top: "70px",
+          left: "10px",
+          backgroundColor: "#222",
+          color: "#fff",
+          padding: "10px 20px",
+          textDecoration: "none",
+          borderRadius: "5px",
+          zIndex: 999,
+        }}
+      >
+        VFX
+      </Link>
       <button
         style={{
           position: "absolute",
