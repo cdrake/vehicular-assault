@@ -131,9 +131,9 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
       pivotFR.rotation.y = steeringAngle
 
       // Throttle/brake with reverse
-      if (inputMap.current[' ']) {
+      if (inputMap.current['w']) {
         speed += 10 * deltaTime
-      } else if (inputMap.current['shift']) {
+      } else if (inputMap.current['s']) {
         speed -= 10 * deltaTime
       } else {
         speed *= 0.98
