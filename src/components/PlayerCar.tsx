@@ -1,14 +1,13 @@
 import React, { useEffect, useRef } from 'react'
 import { useScene } from 'react-babylonjs'
 import {
-  ActionManager,
-  Axis,
-  Color3,
-  ExecuteCodeAction,
-  MeshBuilder,
-  Space,
-  StandardMaterial,
+  LoadAssetContainerAsync,
   TransformNode,
+  AbstractMesh,
+  ActionManager,
+  ExecuteCodeAction,
+  Axis,
+  Space,
   Vector3
 } from '@babylonjs/core'
 
@@ -18,148 +17,140 @@ interface PlayerCarProps {
 
 const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
   const scene = useScene()
+
   const inputMap = useRef<Record<string, boolean>>({})
+  const carRootRef = useRef<TransformNode | null>(null)
+  const frontPivotsRef = useRef<TransformNode[]>([])
+  const wheelsRef = useRef<AbstractMesh[]>([])
+  const speedRef = useRef(0)
+  const steeringRef = useRef(0)
 
   useEffect(() => {
     if (!scene) return
 
-    console.log('✅ PlayerCar: Creating car meshes in scene.')
+    // Input setup
+    scene.actionManager ??= new ActionManager(scene)
+    scene.actionManager.actions?.forEach(action => scene.actionManager?.unregisterAction(action))
 
-    // === PARAMETERS ===
-    const chassisLength = 20
-    const chassisWidth = 8
-    const chassisHeight = 2
-    const wheelRadius = 2
-    const wheelWidth = 1
-    const wheelXOffset = chassisWidth * 0.5 + 0.1
-    const wheelZOffset = chassisLength * 0.3
-
-    // === ROOT NODE ===
-    const carRoot = new TransformNode('carRoot', scene)
-    carRoot.position.y = wheelRadius + chassisHeight / 2 + 0.05
-    onCarRootReady?.(carRoot)
-
-    // === MATERIALS ===
-    const bodyMat = new StandardMaterial('bodyMat', scene)
-    bodyMat.diffuseColor = new Color3(0.1, 0.1, 0.8)
-
-    const wheelMat = new StandardMaterial('wheelMat', scene)
-    wheelMat.diffuseColor = new Color3(0, 0, 0)
-
-    // === CHASSIS ===
-    const chassis = MeshBuilder.CreateBox('chassis', {
-      width: chassisWidth,
-      height: chassisHeight,
-      depth: chassisLength
-    }, scene)
-    chassis.material = bodyMat
-    chassis.parent = carRoot
-
-    // === HELPER FUNCTIONS ===
-    const createSteeringWheel = (name: string, x: number, z: number) => {
-      const pivot = new TransformNode(`${name}_pivot`, scene)
-      pivot.parent = carRoot
-      pivot.position = new Vector3(x, -chassisHeight / 2, z)
-
-      const wheel = MeshBuilder.CreateCylinder(`${name}_mesh`, {
-        diameter: wheelRadius * 2,
-        height: wheelWidth,
-        tessellation: 24
-      }, scene)
-      wheel.material = wheelMat
-
-      wheel.rotate(Axis.Z, Math.PI / 2, Space.LOCAL)
-      wheel.bakeCurrentTransformIntoVertices()
-      wheel.parent = pivot
-      return { pivot, wheel }
-    }
-
-    const createFixedWheel = (name: string, x: number, z: number) => {
-      const wheel = MeshBuilder.CreateCylinder(name, {
-        diameter: wheelRadius * 2,
-        height: wheelWidth,
-        tessellation: 24
-      }, scene)
-      wheel.material = wheelMat
-
-      wheel.rotate(Axis.Z, Math.PI / 2, Space.LOCAL)
-      wheel.bakeCurrentTransformIntoVertices()
-      wheel.parent = carRoot
-      wheel.position = new Vector3(x, -chassisHeight / 2, z)
-      return wheel
-    }
-
-    // === FRONT WHEELS WITH PIVOTS ===
-    const { pivot: pivotFL, wheel: wheelFL } = createSteeringWheel('wheelFL', -wheelXOffset, -wheelZOffset)
-    const { pivot: pivotFR, wheel: wheelFR } = createSteeringWheel('wheelFR', wheelXOffset, -wheelZOffset)
-
-    // === REAR WHEELS ===
-    const wheelRL = createFixedWheel('wheelRL', -wheelXOffset, wheelZOffset)
-    const wheelRR = createFixedWheel('wheelRR', wheelXOffset, wheelZOffset)
-
-    // === INPUT ===
-    scene.actionManager = new ActionManager(scene)
-    scene.actionManager.registerAction(new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, evt => {
+    const downAction = new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, evt => {
       inputMap.current[evt.sourceEvent.key.toLowerCase()] = true
-    }))
-    scene.actionManager.registerAction(new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, evt => {
+    })
+    const upAction = new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, evt => {
       inputMap.current[evt.sourceEvent.key.toLowerCase()] = false
-    }))
-
-    // === ANIMATION STATE ===
-    let steeringAngle = 0
-    let speed = 0
-
-    // === ANIMATION LOOP ===
-    scene.onBeforeRenderObservable.add(() => {
-      const deltaTime = scene.getEngine().getDeltaTime() / 1000
-
-      // Steering control
-      if (inputMap.current['d']) {
-        steeringAngle += 0.5 * deltaTime
-        steeringAngle = Math.min(steeringAngle, Math.PI / 6)
-      } else if (inputMap.current['a']) {
-        steeringAngle -= 0.5 * deltaTime
-        steeringAngle = Math.max(steeringAngle, -Math.PI / 6)
-      } else {
-        // Auto-centering
-        if (steeringAngle > 0) steeringAngle = Math.max(0, steeringAngle - 1.5 * deltaTime)
-        else if (steeringAngle < 0) steeringAngle = Math.min(0, steeringAngle + 1.5 * deltaTime)
-      }
-
-      pivotFL.rotation.y = steeringAngle
-      pivotFR.rotation.y = steeringAngle
-
-      // Throttle/brake with reverse
-      if (inputMap.current['w']) {
-        speed += 10 * deltaTime
-      } else if (inputMap.current['s']) {
-        speed -= 10 * deltaTime
-      } else {
-        speed *= 0.98
-      }
-
-      // Clamp speed
-      const MAX_SPEED = 20
-      if (speed > MAX_SPEED) speed = MAX_SPEED
-      if (speed < -MAX_SPEED / 2) speed = -MAX_SPEED / 2
-
-      // Roll wheels
-      const rollDelta = speed * deltaTime / wheelRadius
-      wheelFL.rotate(Axis.X, rollDelta, Space.LOCAL)
-      wheelFR.rotate(Axis.X, rollDelta, Space.LOCAL)
-      wheelRL.rotate(Axis.X, rollDelta, Space.LOCAL)
-      wheelRR.rotate(Axis.X, rollDelta, Space.LOCAL)
-
-      // Move carRoot in local Z, rotate for arc turning
-      const distance = speed * deltaTime
-      carRoot.translate(Axis.Z, -distance, Space.LOCAL)
-      carRoot.rotate(Axis.Y, steeringAngle * distance * 0.1, Space.LOCAL)
     })
 
+    scene.actionManager.registerAction(downAction)
+    scene.actionManager.registerAction(upAction)
+
+    // Load GLB model
+    console.log('🚀 Loading car model...')
+    LoadAssetContainerAsync('/vehicular-assault/assets/models/steerable_car4.glb', scene)
+      .then(container => {
+        console.log('✅ Model loaded')
+        scene.onBeforeRenderObservable.clear()
+
+        // Add all to scene
+        container.addAllToScene()
+
+        // Find root node
+        const carRoot = container.meshes.find(m => m instanceof TransformNode) as TransformNode
+        if (!carRoot) {
+          console.error('❌ No root node found in GLB')
+          return
+        }
+
+        // Optionally rename for clarity
+        carRoot.name = 'carRoot'
+        carRootRef.current = carRoot
+        onCarRootReady?.(carRoot)
+
+        // Lift car above ground if needed
+        carRoot.position.y += 1
+
+        // Identify all wheels
+        const allMeshes = container.meshes.filter(m => m instanceof AbstractMesh) as AbstractMesh[]
+        const wheels = allMeshes.filter(m => m.name.toLowerCase().includes('wheel'))
+        wheelsRef.current = wheels
+
+        // --- Create steering pivots for front wheels ---
+        // Identify front wheels (by z position)
+        const frontWheels = wheels.filter(w => w.position.z < 0)
+        const rearWheels = wheels.filter(w => w.position.z >= 0)
+
+        frontPivotsRef.current = []
+
+        frontWheels.forEach(wheel => {
+          const pivot = new TransformNode(`${wheel.name}_pivot`, scene)
+          pivot.parent = carRoot
+          pivot.position = wheel.position.clone()
+
+          wheel.parent = pivot
+          wheel.position = Vector3.Zero()
+
+          frontPivotsRef.current.push(pivot)
+
+          console.log(`✅ Created steering pivot for ${wheel.name}`)
+        })
+
+        // Attach rear wheels directly
+        rearWheels.forEach(wheel => {
+          wheel.parent = carRoot
+          // Maintain position relative to root
+          wheel.position = wheel.position.clone()
+        })
+
+        // --- Animation Loop ---
+        scene.onBeforeRenderObservable.add(() => {
+          if (!carRootRef.current) return
+          const dt = scene.getEngine().getDeltaTime() / 1000
+
+          // Steering input
+          if (inputMap.current['d']) {
+            steeringRef.current += 0.5 * dt
+          } else if (inputMap.current['a']) {
+            steeringRef.current -= 0.5 * dt
+          } else {
+            steeringRef.current *= 0.9
+          }
+          steeringRef.current = Math.max(-Math.PI / 6, Math.min(Math.PI / 6, steeringRef.current))
+
+          // Apply steering rotation to pivots
+          frontPivotsRef.current.forEach(pivot => {
+            pivot.rotation.y = -steeringRef.current
+          })          
+
+          // Throttle/brake/reverse
+          if (inputMap.current['w']) {
+            speedRef.current += 10 * dt
+          }
+          if (inputMap.current['s']) {
+            speedRef.current -= 10 * dt
+          }
+          if (!inputMap.current['w'] && !inputMap.current['s']) {
+            speedRef.current *= 0.98
+          }
+          speedRef.current = Math.max(-10, Math.min(20, speedRef.current))
+
+          // Move carRoot forward in local Z, with turning
+          const distance = speedRef.current * dt
+          if (Math.abs(distance) > 0.001) {
+            carRootRef.current.translate(Axis.Z, -distance, Space.LOCAL)
+            carRootRef.current.rotate(Axis.Y, steeringRef.current * distance * 0.1, Space.LOCAL)
+          }
+
+          // Roll wheels along local X
+          const rollDelta = speedRef.current * dt / 2
+          wheelsRef.current.forEach(wheel => {
+            wheel.rotate(Axis.X, rollDelta, Space.LOCAL)
+          })
+        })
+      })
+      .catch(err => {
+        console.error('❌ Failed to load car model:', err)
+      })
+
     return () => {
-      scene.onBeforeRenderObservable.clear()
-      carRoot.dispose()
+      scene?.onBeforeRenderObservable.clear()
     }
   }, [scene, onCarRootReady])
 
