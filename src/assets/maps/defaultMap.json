@@ -1,156 +1,70 @@
 {
-  "name": "Default Test Map",
-  "description": "A 50x50 map with walls and a center pillar.",
+  "name": "Big City Test Map",
+  "description": "A 400x400 map with walls, obstacles, and buildings.",
   "primitives": [
     {
       "type": "ground",
-      "name": "groundPlane",
-      "size": {
-        "width": 50,
-        "height": 50,
-        "subdivisions": 2
-      },
-      "position": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "mainGround",
+      "size": { "width": 400, "height": 400 },
+      "position": { "x": 0, "y": 0, "z": 0 },
       "material": "concrete",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      },
-      "metadata": {
-        "type": "floor"
-      }
+      "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "box",
-      "name": "wallNorth",
-      "size": {
-        "width": 50,
-        "height": 4,
-        "depth": 0.5
-      },
-      "position": {
-        "x": 0,
-        "y": 2,
-        "z": -25
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "northWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": -200 },
       "material": "wall",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      }
+      "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "box",
-      "name": "wallSouth",
-      "size": {
-        "width": 50,
-        "height": 4,
-        "depth": 0.5
-      },
-      "position": {
-        "x": 0,
-        "y": 2,
-        "z": 25
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "southWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": 200 },
       "material": "wall",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      }
+      "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "box",
-      "name": "wallEast",
-      "size": {
-        "width": 0.5,
-        "height": 4,
-        "depth": 50
-      },
-      "position": {
-        "x": 25,
-        "y": 2,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "eastWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": 200, "y": 5, "z": 0 },
       "material": "wall",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      }
+      "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "box",
-      "name": "wallWest",
-      "size": {
-        "width": 0.5,
-        "height": 4,
-        "depth": 50
-      },
-      "position": {
-        "x": -25,
-        "y": 2,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "westWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": -200, "y": 5, "z": 0 },
       "material": "wall",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      }
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "Building1",
+      "size": { "width": 30, "height": 30, "depth": 30 },
+      "position": { "x": -50, "y": 15, "z": -50 },
+      "material": "building",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "Building2",
+      "size": { "width": 40, "height": 40, "depth": 40 },
+      "position": { "x": 80, "y": 20, "z": 60 },
+      "material": "building",
+      "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "cylinder",
-      "name": "centerPillar",
-      "size": {
-        "diameterTop": 1,
-        "diameterBottom": 1,
-        "height": 5
-      },
-      "position": {
-        "x": 0,
-        "y": 2.5,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "name": "ObstaclePillar",
+      "size": { "diameterTop": 5, "diameterBottom": 5, "height": 20 },
+      "position": { "x": 10, "y": 10, "z": 0 },
       "material": "metal",
-      "physics": {
-        "mass": 0,
-        "collision": true
-      },
-      "metadata": {
-        "destructible": true
-      }
+      "physics": { "mass": 0, "collision": true }
     }
   ]
 }

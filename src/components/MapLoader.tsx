@@ -13,7 +13,15 @@ import type { IPhysicsEngine } from '@babylonjs/core/Physics/IPhysicsEngine'
 export interface MapPrimitive {
   type: string
   name: string
-  size?: Record<string, number>
+  size?: {
+    width?: number
+    height?: number
+    depth?: number
+    diameter?: number
+    diameterTop?: number
+    diameterBottom?: number
+    subdivisions?: number
+  }
   position?: { x: number, y: number, z: number }
   rotation?: { x: number, y: number, z: number }
   material?: string
@@ -23,6 +31,7 @@ export interface MapPrimitive {
   }
   metadata?: Record<string, unknown>
 }
+
 
 export interface MapData {
   name: string
