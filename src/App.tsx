@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArcRotateCamera,
-  Color3,
-  Color4,
-  Scene,
-  TransformNode,
-  Vector3
-} from '@babylonjs/core'
-import { AdvancedDynamicTexture, Button } from '@babylonjs/gui'
+import { ArcRotateCamera, Color3, Color4, Scene, TransformNode, Vector3 } from '@babylonjs/core'
 import PlayerCar from './components/PlayerCar'
 import { Engine, Scene as SceneJSX } from 'react-babylonjs'
 
@@ -17,10 +9,27 @@ const App: React.FC = () => {
   const [carRoot, setCarRoot] = useState<TransformNode | null>(null)
   const cameraRef = useRef<ArcRotateCamera | null>(null)
 
-  // Mobile inputs for controlling the car
+  // 🚀 New: Input state for mobile buttons
   const [mobileInput, setMobileInput] = useState<Record<string, boolean>>({})
 
-  // Scene setup
+  // Handle individual button input
+  const handleMobileInput = (key: string, isPressed: boolean) => {
+  setMobileInput(prev => {
+    const updated = { ...prev, [key]: isPressed }
+
+    // Cancel opposite direction when pressing
+    if (isPressed) {
+      if (key === 'w') updated['s'] = false
+      if (key === 's') updated['w'] = false
+      if (key === 'a') updated['d'] = false
+      if (key === 'd') updated['a'] = false
+    }
+
+    return updated
+  })
+}
+
+  // When scene is ready
   const onSceneReady = useCallback((sceneInstance: Scene) => {
     console.log('✅ Scene initialized.')
     setScene(sceneInstance)
@@ -32,12 +41,11 @@ const App: React.FC = () => {
     if (!scene || !carRoot) return
 
     console.log('✅ Setting up follow camera')
-
     const camera = new ArcRotateCamera(
       'FollowCamera',
       Math.PI / 2,
       Math.PI / 3,
-      30,
+      20,
       carRoot.position.clone(),
       scene
     )
@@ -50,7 +58,7 @@ const App: React.FC = () => {
 
     const observer = scene.onBeforeRenderObservable.add(() => {
       if (!cameraRef.current || !carRoot) return
-      cameraRef.current.target = Vector3.Lerp(cameraRef.current.target, carRoot.position, 0.05)
+      cameraRef.current.target = Vector3.Lerp(cameraRef.current.target, carRoot.position, 0.25)
     })
 
     return () => {
@@ -59,88 +67,25 @@ const App: React.FC = () => {
     }
   }, [scene, carRoot])
 
-  // Add GUI for mobile controls
-  useEffect(() => {
-    if (!scene) return
-
-    const guiTexture = AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene)
-    guiTexture.background = 'transparent'
-
-    const buttonConfigs = [
-      { name: 'Accelerate', inputKey: 'w', color: 'green', top: '-120px' },
-      { name: 'Reverse', inputKey: 's', color: 'red', top: '-40px' },
-      { name: 'Left', inputKey: 'a', color: 'blue', left: '-120px' },
-      { name: 'Right', inputKey: 'd', color: 'blue', left: '120px' }
-    ]
-
-    buttonConfigs.forEach(cfg => {
-      const btn = Button.CreateSimpleButton(cfg.name, cfg.name)
-      btn.width = '150px'
-      btn.height = '60px'
-      btn.color = 'white'
-      btn.background = cfg.color
-      btn.cornerRadius = 10
-      btn.thickness = 2
-      btn.alpha = 0.8
-
-      // Position on screen
-      btn.verticalAlignment = Button.VERTICAL_ALIGNMENT_BOTTOM
-      btn.horizontalAlignment = Button.HORIZONTAL_ALIGNMENT_CENTER
-      if (cfg.top) btn.top = cfg.top
-      if (cfg.left) btn.left = cfg.left
-
-      // Touch events
-      btn.onPointerDownObservable.add(() => {
-        setMobileInput(prev => ({ ...prev, [cfg.inputKey]: true }))
-      })
-      btn.onPointerUpObservable.add(() => {
-        setMobileInput(prev => ({ ...prev, [cfg.inputKey]: false }))
-      })
-
-      guiTexture.addControl(btn)
-    })
-
-    return () => {
-      guiTexture.dispose()
-    }
-  }, [scene])
-
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <Link
-        to="/customize"
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          backgroundColor: '#222',
-          color: '#fff',
-          padding: '10px 20px',
-          textDecoration: 'none',
-          borderRadius: '5px',
-          zIndex: 999
-        }}
-      >
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      <Link to="/customize" style={{
+        position: 'absolute', top: 10, left: 10,
+        backgroundColor: '#222', color: '#fff',
+        padding: '10px 20px', textDecoration: 'none',
+        borderRadius: '5px', zIndex: 999
+      }}>
         Customize
       </Link>
 
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <SceneJSX onCreated={onSceneReady}>
-          <hemisphericLight
-            name="AmbientLight"
-            intensity={0.3}
-            direction={Vector3.Up()}
-            groundColor={new Color3(0.1, 0.1, 0.1)}
-            diffuse={new Color3(0.9, 0.9, 0.9)}
-            specular={new Color3(0, 0, 0)}
-          />
-
+          <hemisphericLight name="AmbientLight" intensity={0.3} direction={Vector3.Up()} />
           <directionalLight
             name="DirectionalLight"
             direction={new Vector3(-1, -2, -1)}
             intensity={0.7}
           />
-
           <ground
             name="Ground"
             width={400}
@@ -155,12 +100,71 @@ const App: React.FC = () => {
               specularColor={new Color3(0, 0, 0)}
             />
           </ground>
-
           <PlayerCar onCarRootReady={setCarRoot} mobileInput={mobileInput} />
         </SceneJSX>
       </Engine>
+
+      {/* 🚀 Mobile control overlay */}
+      <div style={{
+        position: 'absolute',
+        bottom: 20,
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 10,
+        zIndex: 999
+      }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            style={buttonStyle('green')}
+            onTouchStart={() => handleMobileInput('w', true)}
+            onTouchEnd={() => handleMobileInput('w', false)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            Accelerate
+          </button>
+          <button
+            style={buttonStyle('red')}
+            onTouchStart={() => handleMobileInput('s', true)}
+            onTouchEnd={() => handleMobileInput('s', false)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            Reverse
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 40 }}>
+          <button
+            style={buttonStyle('blue')}
+            onTouchStart={() => handleMobileInput('a', true)}
+            onTouchEnd={() => handleMobileInput('a', false)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            Left
+          </button>
+          <button
+            style={buttonStyle('blue')}
+            onTouchStart={() => handleMobileInput('d', true)}
+            onTouchEnd={() => handleMobileInput('d', false)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            Right
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
+
+// 🔥 Styled button component
+const buttonStyle = (color: string): React.CSSProperties => ({
+  padding: '10px 20px',
+  backgroundColor: color,
+  color: 'white',
+  border: 'none',
+  borderRadius: '8px',
+  fontSize: '16px',
+  touchAction: 'none'
+})
 
 export default App
