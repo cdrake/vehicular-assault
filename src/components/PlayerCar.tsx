@@ -13,17 +13,28 @@ import {
 
 interface PlayerCarProps {
   onCarRootReady?: (node: TransformNode) => void
+  mobileInput?: Record<string, boolean>
 }
 
-const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
+const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady, mobileInput = {} }) => {
   const scene = useScene()
 
   const inputMap = useRef<Record<string, boolean>>({})
   const carRootRef = useRef<TransformNode | null>(null)
+  const prevRootRef = useRef<TransformNode | null>(null)
   const frontPivotsRef = useRef<TransformNode[]>([])
   const wheelsRef = useRef<AbstractMesh[]>([])
   const speedRef = useRef(0)
   const steeringRef = useRef(0)
+
+  const mobileInputRef = useRef<Record<string, boolean>>({})
+
+
+  // Add effect to sync prop to ref
+  useEffect(() => {
+    mobileInputRef.current = mobileInput
+  }, [mobileInput])
+
 
   useEffect(() => {
     if (!scene) return
@@ -42,6 +53,13 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
     scene.actionManager.registerAction(downAction)
     scene.actionManager.registerAction(upAction)
 
+    // 🧹 CLEAN UP previous car if present
+    if (prevRootRef.current) {
+      console.log('🧹 Disposing previous carRoot')
+      prevRootRef.current.dispose()
+      prevRootRef.current = null
+    }
+
     // Load GLB model
     console.log('🚀 Loading car model...')
     LoadAssetContainerAsync('/vehicular-assault/assets/models/steerable_car4.glb', scene)
@@ -49,7 +67,6 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
         console.log('✅ Model loaded')
         scene.onBeforeRenderObservable.clear()
 
-        // Add all to scene
         container.addAllToScene()
 
         // Find root node
@@ -59,12 +76,11 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
           return
         }
 
-        // Optionally rename for clarity
         carRoot.name = 'carRoot'
         carRootRef.current = carRoot
+        prevRootRef.current = carRoot
         onCarRootReady?.(carRoot)
 
-        // Lift car above ground if needed
         carRoot.position.y += 1
 
         // Identify all wheels
@@ -73,7 +89,6 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
         wheelsRef.current = wheels
 
         // --- Create steering pivots for front wheels ---
-        // Identify front wheels (by z position)
         const frontWheels = wheels.filter(w => w.position.z < 0)
         const rearWheels = wheels.filter(w => w.position.z >= 0)
 
@@ -92,10 +107,8 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
           console.log(`✅ Created steering pivot for ${wheel.name}`)
         })
 
-        // Attach rear wheels directly
         rearWheels.forEach(wheel => {
           wheel.parent = carRoot
-          // Maintain position relative to root
           wheel.position = wheel.position.clone()
         })
 
@@ -104,29 +117,33 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
           if (!carRootRef.current) return
           const dt = scene.getEngine().getDeltaTime() / 1000
 
+          const activeInput: Record<string, boolean> = {
+            ...inputMap.current,
+            ...mobileInputRef.current
+          }
+
           // Steering input
-          if (inputMap.current['d']) {
+          if (activeInput['d']) {
             steeringRef.current += 0.5 * dt
-          } else if (inputMap.current['a']) {
+          } else if (activeInput['a']) {
             steeringRef.current -= 0.5 * dt
           } else {
             steeringRef.current *= 0.9
           }
           steeringRef.current = Math.max(-Math.PI / 6, Math.min(Math.PI / 6, steeringRef.current))
 
-          // Apply steering rotation to pivots
           frontPivotsRef.current.forEach(pivot => {
             pivot.rotation.y = -steeringRef.current
-          })          
+          })
 
           // Throttle/brake/reverse
-          if (inputMap.current['w']) {
+          if (activeInput['w']) {
             speedRef.current += 10 * dt
           }
-          if (inputMap.current['s']) {
+          if (activeInput['s']) {
             speedRef.current -= 10 * dt
           }
-          if (!inputMap.current['w'] && !inputMap.current['s']) {
+          if (!activeInput['w'] && !activeInput['s']) {
             speedRef.current *= 0.98
           }
           speedRef.current = Math.max(-10, Math.min(20, speedRef.current))
@@ -150,6 +167,7 @@ const PlayerCar: React.FC<PlayerCarProps> = ({ onCarRootReady }) => {
       })
 
     return () => {
+      console.log('🧹 Cleaning up PlayerCar effect')
       scene?.onBeforeRenderObservable.clear()
     }
   }, [scene, onCarRootReady])
