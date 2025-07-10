@@ -1,26 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Engine, Scene } from 'react-babylonjs'
 import {
   ArcRotateCamera,
   Color3,
   Color4,
-  DirectionalLight,
-  HemisphericLight,
-  MeshBuilder,
+  Scene,
   TransformNode,
-  UniversalCamera,
   Vector3
 } from '@babylonjs/core'
 import PlayerCar from './components/PlayerCar'
+import { Engine, Scene as SceneJSX } from 'react-babylonjs'
 
 const App: React.FC = () => {
-  const [scene, setScene] = useState<any>(null)
+  const [scene, setScene] = useState<Scene | null>(null)
   const [carRoot, setCarRoot] = useState<TransformNode | null>(null)
   const cameraRef = useRef<ArcRotateCamera | null>(null)
 
   // Set up scene when created
-  const onSceneReady = useCallback((sceneInstance) => {
+  const onSceneReady = useCallback((sceneInstance: Scene) => {
     console.log('✅ Scene initialized.')
     setScene(sceneInstance)
     sceneInstance.clearColor = new Color4(0.05, 0.05, 0.05, 1)
@@ -77,7 +74,7 @@ const App: React.FC = () => {
       </Link>
 
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
-        <Scene onCreated={onSceneReady}>
+        <SceneJSX onCreated={onSceneReady}>
           <hemisphericLight
             name="AmbientLight"
             intensity={0.3}
@@ -108,7 +105,7 @@ const App: React.FC = () => {
           </ground>
 
           <PlayerCar onCarRootReady={setCarRoot} />
-        </Scene>
+        </SceneJSX>
       </Engine>
     </div>
   )
