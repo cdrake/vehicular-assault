@@ -9,13 +9,14 @@ import {
   StandardMaterial,
   TransformNode,
   Vector3,
+  DirectionalLight,
+  ShadowGenerator,
 } from "@babylonjs/core"
-import PlayerCar from "./components/PlayerCar"
 import { Engine, Scene as SceneJSX } from "react-babylonjs"
 import { createMapFromJson } from "./components/MapLoader"
 import defaultMap from "./assets/maps/defaultMap.json"
-import { HavokPlugin } from "@babylonjs/core/Physics/v2"
 import HavokPhysics from "@babylonjs/havok"
+import { HavokPlugin } from "@babylonjs/core/Physics/v2"
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder"
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics/v2"
 import SteerableCar from "./components/SteerableCar"
@@ -50,8 +51,8 @@ const App: React.FC = () => {
   const [physicsReady, setPhysicsEnabled] = useState(false)
   const [mobileInput, setMobileInput] = useState<Record<string, boolean>>({})
   const [isMobile, setIsMobile] = useState<boolean>(false)
-
   const groundRef = useRef<GroundMesh | null>(null)
+  const shadowGenRef = useRef<ShadowGenerator | null>(null)
 
   // Detect mobile
   useEffect(() => {
@@ -74,16 +75,16 @@ const App: React.FC = () => {
 
   // Scene ready
   const onSceneReady = useCallback(async (sceneInstance: Scene) => {
-    console.log("✅ Scene initialized.")
     setScene(sceneInstance)
     sceneInstance.clearColor = new Color4(0.05, 0.05, 0.05, 1)
 
-    const havok = await HavokPhysics()
-    console.log("[Havok] Loaded:", havok)
-    const havokPlugin = new HavokPlugin(true, havok)
+    // Physics
+    const hk = await HavokPhysics()
+    const havokPlugin = new HavokPlugin(true, hk)
     sceneInstance.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin)
-    console.log("✅ Physics enabled.")
     setPhysicsEnabled(true)
+
+    // Ground physics
     if (groundRef.current) {
       new PhysicsAggregate(
         groundRef.current,
@@ -91,10 +92,22 @@ const App: React.FC = () => {
         { mass: 0, restitution: 0.2, friction: 0.9 },
         sceneInstance
       )
-      console.log("✅ Ground physics added")
-    } else {
-      console.log('ground not set')
     }
+
+    // Shadows: directional light + generator
+    const dirLight = new DirectionalLight(
+      "dirLight",
+      new Vector3(-1, -2, -1),
+      sceneInstance
+    )
+    dirLight.position = new Vector3(20, 40, 20)
+    const shadowGen = new ShadowGenerator(2048, dirLight)
+    shadowGen.useBlurExponentialShadowMap = true
+    shadowGen.blurKernel = 32
+    shadowGenRef.current = shadowGen
+
+    // Ground receives
+    if (groundRef.current) groundRef.current.receiveShadows = true
   }, [])
 
   // Map load
@@ -102,91 +115,84 @@ const App: React.FC = () => {
     if (!scene || !physicsReady) return
     const materials = createMaterials(scene)
     createMapFromJson(scene, defaultMap, materials, scene.getPhysicsEngine())
-    const testBox = MeshBuilder.CreateBox("TestBox", { size: 2 }, scene)
-    testBox.position = new Vector3(100, 20, 0) // Place it above the ground
 
+    const testBox = MeshBuilder.CreateBox("TestBox", { size: 2 }, scene)
+    testBox.position = new Vector3(100, 20, 0)
     new PhysicsAggregate(
       testBox,
       PhysicsShapeType.BOX,
       { mass: 1, restitution: 0.2, friction: 0.5 },
       scene
     )
-
-    console.log("✅ Added physics test box at (0, 20, 0)")
   }, [scene, physicsReady])
 
-  // Follow camera
+  // Follow camera + shadows caster hookup
   useEffect(() => {
     if (!scene || !carRoot) return
-    console.log("✅ Setting up follow camera")
 
-    const camera = new ArcRotateCamera(
-      "FollowCamera",
+    // Camera
+    const canvas = scene.getEngine().getRenderingCanvas()
+    const cam = new ArcRotateCamera(
+      "FollowCam",
       Math.PI / 2,
       Math.PI / 3,
       20,
-      carRoot.position.clone(),
+      carRoot!.position.clone(), // ← use the car’s position
       scene
     )
-    camera.attachControl(true)
-    camera.lowerBetaLimit = 0.1
-    camera.upperBetaLimit = Math.PI / 2
-    camera.wheelPrecision = 50
-    scene.activeCamera = camera
-    cameraRef.current = camera
+    cam.attachControl(canvas, true)
+    cam.lowerBetaLimit = 0.1
+    cam.upperBetaLimit = Math.PI / 2
+    scene.activeCamera = cam
+    cameraRef.current = cam
 
-    const observer = scene.onBeforeRenderObservable.add(() => {
-      if (!cameraRef.current || !carRoot) return
-      cameraRef.current.target = Vector3.Lerp(
-        cameraRef.current.target,
-        carRoot.position,
-        0.25
-      )
+    // Shadows: add car mesh + wheels as casters
+    const shadowGen = shadowGenRef.current
+    if (shadowGen && carRoot) {
+      // make every mesh under carRoot cast a shadow
+      carRoot.getChildMeshes().forEach((m) => {
+        shadowGen.addShadowCaster(m)
+      })
+
+      // (optional) if you still have standalone wheel meshes elsewhere:
+      scene.meshes.forEach((m) => {
+        if (m.name.toLowerCase().includes("wheel")) {
+          shadowGen.addShadowCaster(m)
+        }
+      })
+    }
+
+    // Smooth follow
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      cam.target = Vector3.Lerp(cam.target, carRoot.position, 0.2)
     })
 
     return () => {
-      camera.dispose()
-      scene.onBeforeRenderObservable.remove(observer)
+      scene.onBeforeRenderObservable.remove(obs)
+      cam.dispose()
     }
   }, [scene, carRoot])
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
       <Link
         to="/customize"
-        style={{
-          position: "absolute",
-          top: 10,
-          left: 10,
-          backgroundColor: "#222",
-          color: "#fff",
-          padding: "10px 20px",
-          textDecoration: "none",
-          borderRadius: "5px",
-          zIndex: 999,
-        }}
+        style={{ position: "absolute", top: 10, left: 10, zIndex: 999 }}
       >
         Customize
       </Link>
-
+      <Link
+        to="/havok"
+        style={{ position: "absolute", top: 10, left: 120, zIndex: 999 }}
+      >
+        Havok Sample
+      </Link>
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <SceneJSX onCreated={onSceneReady}>
           <hemisphericLight
             name="AmbientLight"
             intensity={0.3}
             direction={Vector3.Up()}
-          />
-          <directionalLight
-            name="DirectionalLight"
-            direction={new Vector3(-1, -2, -1)}
-            intensity={0.7}
           />
           <ground
             ref={groundRef}
@@ -228,36 +234,28 @@ const App: React.FC = () => {
         >
           <div style={{ display: "flex", gap: 10 }}>
             <button
-              style={buttonStyle("green")}
               onTouchStart={() => handleMobileInput("w", true)}
               onTouchEnd={() => handleMobileInput("w", false)}
-              onContextMenu={(e) => e.preventDefault()}
             >
               Accelerate
             </button>
             <button
-              style={buttonStyle("red")}
               onTouchStart={() => handleMobileInput("s", true)}
               onTouchEnd={() => handleMobileInput("s", false)}
-              onContextMenu={(e) => e.preventDefault()}
             >
               Reverse
             </button>
           </div>
           <div style={{ display: "flex", gap: 40 }}>
             <button
-              style={buttonStyle("blue")}
               onTouchStart={() => handleMobileInput("a", true)}
               onTouchEnd={() => handleMobileInput("a", false)}
-              onContextMenu={(e) => e.preventDefault()}
             >
               Left
             </button>
             <button
-              style={buttonStyle("blue")}
               onTouchStart={() => handleMobileInput("d", true)}
               onTouchEnd={() => handleMobileInput("d", false)}
-              onContextMenu={(e) => e.preventDefault()}
             >
               Right
             </button>
@@ -267,16 +265,5 @@ const App: React.FC = () => {
     </div>
   )
 }
-
-// Style helper
-const buttonStyle = (color: string): React.CSSProperties => ({
-  padding: "10px 20px",
-  backgroundColor: color,
-  color: "white",
-  border: "none",
-  borderRadius: "8px",
-  fontSize: "16px",
-  touchAction: "none",
-})
 
 export default App

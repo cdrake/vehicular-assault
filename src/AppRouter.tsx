@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
 import Customize from './pages/Customize'
 import VFX from './pages/VFX'
+import { HavokSamplePage } from './pages/HavokSamplePage'
 
 const AppRouter: React.FC = () => {
   return (
@@ -12,6 +13,7 @@ const AppRouter: React.FC = () => {
         <Route path="/" element={<App />} />
         <Route path="/customize" element={<Customize />} />
         <Route path="/vfx" element={<VFX />} />
+        <Route path="/havok" element={<HavokSamplePage/>} />
       </Routes>
     </BrowserRouter>
   )
