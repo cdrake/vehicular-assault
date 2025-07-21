@@ -1,11 +1,9 @@
-// MapLoader.tsx
-
 import { Scene } from '@babylonjs/core/scene'
 import { Vector3 } from '@babylonjs/core/Maths/math'
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
-import { PhysicsImpostor } from '@babylonjs/core/Physics/physicsImpostor'
 import type { IPhysicsEngine } from '@babylonjs/core/Physics/IPhysicsEngine'
+import { PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics/v2'
 
 /**
  * Types
@@ -13,15 +11,7 @@ import type { IPhysicsEngine } from '@babylonjs/core/Physics/IPhysicsEngine'
 export interface MapPrimitive {
   type: string
   name: string
-  size?: {
-    width?: number
-    height?: number
-    depth?: number
-    diameter?: number
-    diameterTop?: number
-    diameterBottom?: number
-    subdivisions?: number
-  }
+  size?: Record<string, number | undefined>
   position?: { x: number, y: number, z: number }
   rotation?: { x: number, y: number, z: number }
   material?: string
@@ -32,7 +22,6 @@ export interface MapPrimitive {
   metadata?: Record<string, unknown>
 }
 
-
 export interface MapData {
   name: string
   description?: string
@@ -40,19 +29,20 @@ export interface MapData {
 }
 
 /**
- * Helper to map type to PhysicsImpostor type
+ * Helper to map type to PhysicsShapeType
  */
-function getImpostorType(type: string): number {
+function getShapeType(type: string): PhysicsShapeType {
   switch (type) {
     case 'box':
     case 'ground':
     case 'plane':
-      return PhysicsImpostor.BoxImpostor
+      return PhysicsShapeType.BOX
     case 'cylinder':
+      return PhysicsShapeType.CYLINDER
     case 'sphere':
-      return PhysicsImpostor.SphereImpostor
+      return PhysicsShapeType.SPHERE
     default:
-      return PhysicsImpostor.MeshImpostor
+      return PhysicsShapeType.MESH
   }
 }
 
@@ -141,15 +131,14 @@ export function createMapFromJson(
       mesh.material = materials[item.material]
     }
 
-    // Add physics impostor if needed
+    // Add physics aggregate if needed
     if (physicsEngine && item.physics?.collision) {
       const mass = item.physics.mass ?? 0
-      mesh.physicsImpostor = new PhysicsImpostor(
-        mesh,
-        getImpostorType(item.type),
-        { mass },
-        scene
-      )
+      const shapeType = getShapeType(item.type)
+
+      console.log(`✅ Adding physics to ${item.name}: type=${shapeType}, mass=${mass}`)
+
+      new PhysicsAggregate(mesh, shapeType, { mass, restitution: 0.1, friction: 0.5 }, scene)
     }
 
     // Add metadata
@@ -157,6 +146,6 @@ export function createMapFromJson(
       mesh.metadata = item.metadata
     }
 
-    console.log(`Created mesh: ${mesh.name}`)
+    console.log(`✅ Created mesh: ${mesh.name}`)
   })
 }
