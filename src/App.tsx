@@ -20,6 +20,7 @@ import { HavokPlugin } from "@babylonjs/core/Physics/v2"
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder"
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics/v2"
 import SteerableCar from "./components/SteerableCar"
+import PlayerCar from "./components/PlayerCar"
 
 // Material creation
 const createMaterials = (scene: Scene) => {
@@ -210,7 +211,7 @@ const App: React.FC = () => {
             />
           </ground>
           {scene && physicsReady && (
-            <SteerableCar
+            <PlayerCar
               scene={scene}
               onCarRootReady={setCarRoot}
               mobileInput={mobileInput}
