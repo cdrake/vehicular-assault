@@ -1,0 +1,78 @@
+{
+  "name": "Street Justice",
+  "description": "Cartoony neighborhood streets rife with prank vans, banana slicks, and confetti cannons—outsmart the Dino Crew and clean up the city!",
+  "primitives": [
+    {
+      "type": "ground",
+      "name": "mainGround",
+      "size": { "width": 400, "height": 400 },
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "material": "concrete",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "northWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": -200 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "southWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": 200 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "eastWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": 200, "y": 5, "z": 0 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "westWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": -200, "y": 5, "z": 0 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "PrankVan",
+      "size": { "width": 30, "height": 15, "depth": 50 },
+      "position": { "x": 0, "y": 7.5, "z": -50 },
+      "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "cylinder",
+      "name": "ConfettiCannon",
+      "size": { "diameterTop": 8, "diameterBottom": 8, "height": 10 },
+      "position": { "x": 100, "y": 5, "z": 100 },
+      "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "BananaSlick",
+      "size": { "width": 100, "height": 0.1, "depth": 20 },
+      "position": { "x": -80, "y": 0.05, "z": 50 },
+      "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "TrashPile",
+      "size": { "width": 20, "height": 20, "depth": 20 },
+      "position": { "x": 50, "y": 10, "z": -100 },
+      "material": "building",
+      "physics": { "mass": 0, "collision": true }
+    }
+  ]
+}

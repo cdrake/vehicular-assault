@@ -1,0 +1,78 @@
+{
+  "name": "Delivery Dash",
+  "description": "Navigate busy futuristic streets—clear roadblocks, dodge downed vehicles, and intercept the medical crate in time.",
+  "primitives": [
+    {
+      "type": "ground",
+      "name": "mainGround",
+      "size": { "width": 400, "height": 400 },
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "material": "concrete",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "northWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": -200 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "southWall",
+      "size": { "width": 400, "height": 10, "depth": 2 },
+      "position": { "x": 0, "y": 5, "z": 200 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "eastWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": 200, "y": 5, "z": 0 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "westWall",
+      "size": { "width": 2, "height": 10, "depth": 400 },
+      "position": { "x": -200, "y": 5, "z": 0 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "DeliveryCrate",
+      "size": { "width": 20, "height": 20, "depth": 20 },
+      "position": { "x": 50, "y": 10, "z": -50 },
+      "material": "building",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "RoadblockBarrier",
+      "size": { "width": 100, "height": 10, "depth": 5 },
+      "position": { "x": 0, "y": 5, "z": 0 },
+      "material": "wall",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "cylinder",
+      "name": "CorporateBot",
+      "size": { "diameterTop": 6, "diameterBottom": 6, "height": 20 },
+      "position": { "x": 100, "y": 10, "z": 50 },
+      "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "cylinder",
+      "name": "TrafficCone",
+      "size": { "diameterTop": 2, "diameterBottom": 2, "height": 5 },
+      "position": { "x": -100, "y": 2.5, "z": 100 },
+      "material": "building",
+      "physics": { "mass": 0, "collision": true }
+    }
+  ]
+}

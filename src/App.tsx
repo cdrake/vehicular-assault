@@ -1,221 +1,112 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArcRotateCamera, Color3, Color4, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core'
-import PlayerCar from './components/PlayerCar'
-import { Engine, Scene as SceneJSX } from 'react-babylonjs'
-import { createMapFromJson } from './components/MapLoader'
-import defaultMap from './assets/maps/defaultMap.json'
-import { HavokPlugin } from '@babylonjs/core/Physics/v2'
-import HavokPhysics from '@babylonjs/havok'
+// App.tsx
+import React, { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-/**
- * Detect mobile
- */
-const isMobileDevice = (): boolean => {
-  if (typeof navigator === 'undefined') return false
-  return /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-}
+// your three storylines:
+const STORYLINES = [
+  'turbo-tech-takedown',
+  'street-justice',
+  'delivery-dash'
+] as const
+type RaceSlug = typeof STORYLINES[number]
 
-const createMaterials = (scene: Scene) => {
-  const materials: Record<string, StandardMaterial> = {}
+// default if they don’t click:
+const DEFAULT_RACE: RaceSlug = 'turbo-tech-takedown'
+const SPLASH_DURATION = 30000 // ms
 
-  const concrete = new StandardMaterial('concrete', scene)
-  concrete.diffuseColor = new Color3(0.5, 0.5, 0.5)
-  materials['concrete'] = concrete
+export const App: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const navigate = useNavigate()
+  const timerRef = useRef<number | undefined>(undefined)
 
-  const wall = new StandardMaterial('wall', scene)
-  wall.diffuseColor = new Color3(0.8, 0.3, 0.3)
-  materials['wall'] = wall
-
-  const metal = new StandardMaterial('metal', scene)
-  metal.diffuseColor = new Color3(0.6, 0.6, 0.7)
-  materials['metal'] = metal
-
-  const building = new StandardMaterial('building', scene)
-  building.diffuseColor = new Color3(0.4, 0.4, 0.6)
-  materials['building'] = building
-
-  return materials
-}
-
-const App: React.FC = () => {
-  const [scene, setScene] = useState<Scene | null>(null)
-  const [carRoot, setCarRoot] = useState<TransformNode | null>(null)
-  const cameraRef = useRef<ArcRotateCamera | null>(null)
-  const [, setPhysicsEnabled] = useState(false)
-
-  // ✅ Determine once at startup
-  const isMobile = useRef(isMobileDevice())
-
-  // 🚀 Input state for mobile buttons
-  const [mobileInput, setMobileInput] = useState<Record<string, boolean>>({})
-
-  const handleMobileInput = (key: string, isPressed: boolean) => {
-    setMobileInput(prev => {
-      const updated = { ...prev, [key]: isPressed }
-
-      // Cancel opposite direction
-      if (isPressed) {
-        if (key === 'w') updated['s'] = false
-        if (key === 's') updated['w'] = false
-        if (key === 'a') updated['d'] = false
-        if (key === 'd') updated['a'] = false
-      }
-
-      return updated
-    })
-  }
-
-  // Scene ready
-  const onSceneReady = useCallback(async (sceneInstance: Scene) => {
-    console.log('✅ Scene initialized.')
-    setScene(sceneInstance)
-    sceneInstance.clearColor = new Color4(0.05, 0.05, 0.05, 1)
-
-    const havok = await HavokPhysics()
-    const havokPlugin = new HavokPlugin(true, havok)
-    sceneInstance.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin)
-    console.log('✅ Physics enabled.')
-    setPhysicsEnabled(true)
-  }, [])
-
-  // Load map
+  // spinner animation
   useEffect(() => {
-    if (!scene) return
+    const canvas = canvasRef.current!
+    const ctx = canvas.getContext('2d')!
+    let frame = 0
+    let rafId: number
 
-    const materials = createMaterials(scene)
-    createMapFromJson(scene, defaultMap, materials, scene.getPhysicsEngine())
-  }, [scene])
+    const renderSpinner = () => {
+      const { width, height } = canvas
+      ctx.clearRect(0, 0, width, height)
+      ctx.save()
+      ctx.translate(width/2, height/2)
+      ctx.rotate(frame * 0.05)
+      ctx.beginPath()
+      ctx.arc(30, 0, 8, 0, Math.PI*2)
+      ctx.fill()
+      ctx.restore()
+      frame++
+      rafId = requestAnimationFrame(renderSpinner)
+    }
+    renderSpinner()
 
-  // Follow camera
-  useEffect(() => {
-    if (!scene || !carRoot) return
-
-    console.log('✅ Setting up follow camera')
-    const camera = new ArcRotateCamera(
-      'FollowCamera',
-      Math.PI / 2,
-      Math.PI / 3,
-      20,
-      carRoot.position.clone(),
-      scene
-    )
-    camera.attachControl(true)
-    camera.lowerBetaLimit = 0.1
-    camera.upperBetaLimit = Math.PI / 2
-    camera.wheelPrecision = 50
-    scene.activeCamera = camera
-    cameraRef.current = camera
-
-    const observer = scene.onBeforeRenderObservable.add(() => {
-      if (!cameraRef.current || !carRoot) return
-      cameraRef.current.target = Vector3.Lerp(cameraRef.current.target, carRoot.position, 0.25)
-    })
+    // auto‑redirect after timeout
+    timerRef.current = window.setTimeout(() => {
+      cancelAnimationFrame(rafId)
+      navigate(`/race?race=${DEFAULT_RACE}`)
+    }, SPLASH_DURATION)
 
     return () => {
-      camera.dispose()
-      scene.onBeforeRenderObservable.remove(observer)
+      cancelAnimationFrame(rafId)
+      clearTimeout(timerRef.current)
     }
-  }, [scene, carRoot])
+  }, [navigate])
+
+  // when user clicks a race button
+  const handleSelect = (slug: RaceSlug) => {
+    clearTimeout(timerRef.current)
+    navigate(`/race?race=${slug}`)
+  }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
-      <Link to="/customize" style={{
-        position: 'absolute', top: 10, left: 10,
-        backgroundColor: '#222', color: '#fff',
-        padding: '10px 20px', textDecoration: 'none',
-        borderRadius: '5px', zIndex: 999
-      }}>
-        Customize
-      </Link>
+    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      {/* full‑screen spinner */}
+      <canvas
+        ref={canvasRef}
+        width={window.innerWidth}
+        height={window.innerHeight}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          background: '#111'
+        }}
+      />
 
-      <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
-        <SceneJSX onCreated={onSceneReady}>
-          <hemisphericLight name="AmbientLight" intensity={0.3} direction={Vector3.Up()} />
-          <directionalLight
-            name="DirectionalLight"
-            direction={new Vector3(-1, -2, -1)}
-            intensity={0.7}
-          />
-          <ground
-            name="Ground"
-            width={400}
-            height={400}
-            subdivisions={2}
-            position={new Vector3(0, 0, 0)}
-            receiveShadows
-          >
-            <standardMaterial
-              name="GroundMaterial"
-              diffuseColor={new Color3(0.5, 0.5, 0.5)}
-              specularColor={new Color3(0, 0, 0)}
-            />
-          </ground>
-          <PlayerCar onCarRootReady={setCarRoot} mobileInput={mobileInput} />
-        </SceneJSX>
-      </Engine>
-
-      {isMobile.current && (
-        <div style={{
+      {/* overlayed race links */}
+      <div
+        style={{
           position: 'absolute',
           bottom: 20,
+          left: 0,
           width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 10,
-          zIndex: 999
-        }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              style={buttonStyle('green')}
-              onTouchStart={() => handleMobileInput('w', true)}
-              onTouchEnd={() => handleMobileInput('w', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Accelerate
-            </button>
-            <button
-              style={buttonStyle('red')}
-              onTouchStart={() => handleMobileInput('s', true)}
-              onTouchEnd={() => handleMobileInput('s', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Reverse
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: 40 }}>
-            <button
-              style={buttonStyle('blue')}
-              onTouchStart={() => handleMobileInput('a', true)}
-              onTouchEnd={() => handleMobileInput('a', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Left
-            </button>
-            <button
-              style={buttonStyle('blue')}
-              onTouchStart={() => handleMobileInput('d', true)}
-              onTouchEnd={() => handleMobileInput('d', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Right
-            </button>
-          </div>
-        </div>
-      )}
+          textAlign: 'center',
+          pointerEvents: 'none'  // allow clicking buttons only
+        }}
+      >
+        {STORYLINES.map((slug) => (
+          <button
+            key={slug}
+            onClick={() => handleSelect(slug)}
+            style={{
+              margin: '0 8px',
+              padding: '8px 16px',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              pointerEvents: 'auto',    // re‑enable clicks here
+            }}
+          >
+            {slug
+              .split('-')
+              .map(w => w[0].toUpperCase() + w.slice(1))
+              .join(' ')
+            }
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
-
-const buttonStyle = (color: string): React.CSSProperties => ({
-  padding: '10px 20px',
-  backgroundColor: color,
-  color: 'white',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '16px',
-  touchAction: 'none'
-})
 
 export default App
