@@ -1,6 +1,6 @@
 {
-  "name": "Big City Test Map",
-  "description": "A 400x400 map with walls, obstacles, and buildings.",
+  "name": "Turbo Tech Takedown",
+  "description": "Neon-lit city streets with a high-tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",
   "primitives": [
     {
       "type": "ground",
@@ -44,26 +44,34 @@
     },
     {
       "type": "box",
-      "name": "Building1",
+      "name": "DataCrate",
       "size": { "width": 30, "height": 30, "depth": 30 },
-      "position": { "x": -50, "y": 15, "z": -50 },
-      "material": "building",
-      "physics": { "mass": 0, "collision": true }
-    },
-    {
-      "type": "box",
-      "name": "Building2",
-      "size": { "width": 40, "height": 40, "depth": 40 },
-      "position": { "x": 80, "y": 20, "z": 60 },
+      "position": { "x": 0, "y": 15, "z": -50 },
       "material": "building",
       "physics": { "mass": 0, "collision": true }
     },
     {
       "type": "cylinder",
-      "name": "ObstaclePillar",
-      "size": { "diameterTop": 5, "diameterBottom": 5, "height": 20 },
-      "position": { "x": 10, "y": 10, "z": 0 },
+      "name": "EMP_Pylon",
+      "size": { "diameterTop": 5, "diameterBottom": 5, "height": 25 },
+      "position": { "x": 50, "y": 12.5, "z": 0 },
       "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "OilSlickStrip",
+      "size": { "width": 80, "height": 0.1, "depth": 10 },
+      "position": { "x": -50, "y": 0.05, "z": 100 },
+      "material": "metal",
+      "physics": { "mass": 0, "collision": true }
+    },
+    {
+      "type": "box",
+      "name": "NeonArch",
+      "size": { "width": 10, "height": 20, "depth": 2 },
+      "position": { "x": 0, "y": 10, "z": 150 },
+      "material": "building",
       "physics": { "mass": 0, "collision": true }
     }
   ]

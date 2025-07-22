@@ -1,221 +1,153 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArcRotateCamera, Color3, Color4, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core'
-import PlayerCar from './components/PlayerCar'
+// App.tsx
+import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Engine, Scene as SceneJSX } from 'react-babylonjs'
-import { createMapFromJson } from './components/MapLoader'
-import defaultMap from './assets/maps/defaultMap.json'
-import { HavokPlugin } from '@babylonjs/core/Physics/v2'
-import HavokPhysics from '@babylonjs/havok'
+import {
+  ArcRotateCamera,
+  Color4,
+  Vector3,
+  Vector2,
+  Matrix,
+  Scene,
+} from '@babylonjs/core'
+import { TextRenderer, FontAsset } from '@babylonjs/addons/msdfText'
+import * as GUI from '@babylonjs/gui'
 
-/**
- * Detect mobile
- */
-const isMobileDevice = (): boolean => {
-  if (typeof navigator === 'undefined') return false
-  return /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-}
+const ROBOTO_JSON = 'https://assets.babylonjs.com/fonts/roboto-regular.json'
+const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png'
 
-const createMaterials = (scene: Scene) => {
-  const materials: Record<string, StandardMaterial> = {}
+const STORY = `
+ACT I – TURBO TECH TAKEDOWN
+Neon‑lit streets. Rogue AI pylons spark EMPs.
+Race through rain‑slick avenues to reclaim the stolen data crate.
 
-  const concrete = new StandardMaterial('concrete', scene)
-  concrete.diffuseColor = new Color3(0.5, 0.5, 0.5)
-  materials['concrete'] = concrete
+ACT II – STREET JUSTICE
+The Dino Crew’s prank vans swarm Southside.
+Banana slicks and confetti cannons block every turn—outwit them or be outpaced.
 
-  const wall = new StandardMaterial('wall', scene)
-  wall.diffuseColor = new Color3(0.8, 0.3, 0.3)
-  materials['wall'] = wall
-
-  const metal = new StandardMaterial('metal', scene)
-  metal.diffuseColor = new Color3(0.6, 0.6, 0.7)
-  materials['metal'] = metal
-
-  const building = new StandardMaterial('building', scene)
-  building.diffuseColor = new Color3(0.4, 0.4, 0.6)
-  materials['building'] = building
-
-  return materials
-}
+ACT III – DELIVERY DASH
+A critical medical crate awaits rescue in the corporate zone.
+Dodge roadblocks, ram downed drones, and outrun the clock to save a life.
+`
+const STORYLINES = [
+  'turbo-tech-takedown',
+  'street-justice',
+  'delivery-dash',
+] as const
+type RaceSlug = typeof STORYLINES[number]
+const DEFAULT_RACE: RaceSlug = 'turbo-tech-takedown'
 
 const App: React.FC = () => {
-  const [scene, setScene] = useState<Scene | null>(null)
-  const [carRoot, setCarRoot] = useState<TransformNode | null>(null)
-  const cameraRef = useRef<ArcRotateCamera | null>(null)
-  const [, setPhysicsEnabled] = useState(false)
+  const navigate = useNavigate()
+  const onSceneReady = async (scene: Scene) => {
+    const engine = scene.getEngine()
+    scene.clearColor = new Color4(0, 0, 0, 1)
 
-  // ✅ Determine once at startup
-  const isMobile = useRef(isMobileDevice())
-
-  // 🚀 Input state for mobile buttons
-  const [mobileInput, setMobileInput] = useState<Record<string, boolean>>({})
-
-  const handleMobileInput = (key: string, isPressed: boolean) => {
-    setMobileInput(prev => {
-      const updated = { ...prev, [key]: isPressed }
-
-      // Cancel opposite direction
-      if (isPressed) {
-        if (key === 'w') updated['s'] = false
-        if (key === 's') updated['w'] = false
-        if (key === 'a') updated['d'] = false
-        if (key === 'd') updated['a'] = false
-      }
-
-      return updated
-    })
-  }
-
-  // Scene ready
-  const onSceneReady = useCallback(async (sceneInstance: Scene) => {
-    console.log('✅ Scene initialized.')
-    setScene(sceneInstance)
-    sceneInstance.clearColor = new Color4(0.05, 0.05, 0.05, 1)
-
-    const havok = await HavokPhysics()
-    const havokPlugin = new HavokPlugin(true, havok)
-    sceneInstance.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin)
-    console.log('✅ Physics enabled.')
-    setPhysicsEnabled(true)
-  }, [])
-
-  // Load map
-  useEffect(() => {
-    if (!scene) return
-
-    const materials = createMaterials(scene)
-    createMapFromJson(scene, defaultMap, materials, scene.getPhysicsEngine())
-  }, [scene])
-
-  // Follow camera
-  useEffect(() => {
-    if (!scene || !carRoot) return
-
-    console.log('✅ Setting up follow camera')
+    // Star‑Wars crawl camera setup
     const camera = new ArcRotateCamera(
-      'FollowCamera',
-      Math.PI / 2,
-      Math.PI / 3,
-      20,
-      carRoot.position.clone(),
+      'camera',
+     -1.5739, 3.0559, 5,
+      Vector3.Zero(),
       scene
     )
     camera.attachControl(true)
-    camera.lowerBetaLimit = 0.1
-    camera.upperBetaLimit = Math.PI / 2
-    camera.wheelPrecision = 50
+    camera.minZ = 0.1
     scene.activeCamera = camera
-    cameraRef.current = camera
 
-    const observer = scene.onBeforeRenderObservable.add(() => {
-      if (!cameraRef.current || !carRoot) return
-      cameraRef.current.target = Vector3.Lerp(cameraRef.current.target, carRoot.position, 0.25)
+    // Load MSDF Roboto font
+    const sdfDef = await (await fetch(ROBOTO_JSON)).text()
+    const fontAsset = new FontAsset(sdfDef, ROBOTO_PNG)
+
+    // Create TextRenderer (2 args only)
+    const textRenderer = await TextRenderer.CreateTextRendererAsync(
+      fontAsset,
+      engine
+    )
+
+    // Tint crawl text golden
+    textRenderer.color = new Color4(1, 0.8, 0.2, 1)
+
+    // Add the crawl paragraph; use world matrix to position it
+    textRenderer.addParagraph(
+      STORY,
+      {
+        maxWidth:     1500,
+        lineHeight:   1.2,
+        letterSpacing:2,
+        tabSize:      2,
+        textAlign:    'center',
+        translate:    new Vector2(0,  0),
+      },
+      // start close and centered
+      Matrix.Translation(-10, 15, 10)
+    )
+
+    // Scroll the camera back each frame
+    scene.onAfterRenderObservable.add(() => {
+      textRenderer.render(
+        camera.getViewMatrix(),
+        camera.getProjectionMatrix()
+      )
+      camera.radius += 0.05  // zoom out
+      if (camera.radius > 40) {
+            camera.radius = 5
+      }
     })
 
-    return () => {
-      camera.dispose()
-      scene.onBeforeRenderObservable.remove(observer)
-    }
-  }, [scene, carRoot])
+    // GUI overlay: show character count
+    const ui = GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene)
+    const textBlock = new GUI.TextBlock()
+    textBlock.text ='Vehical Assault'
+    textBlock.color = 'white'
+    textBlock.fontSize = 60
+    textBlock.height = '60px'
+    textBlock.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP
+    ui.addControl(textBlock)
+
+    // user clicked a storyline button
+  
+  }
+  const handleSelect = (slug: RaceSlug) => {
+      navigate(`/race?race=${slug}`)
+  }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
-      <Link to="/customize" style={{
-        position: 'absolute', top: 10, left: 10,
-        backgroundColor: '#222', color: '#fff',
-        padding: '10px 20px', textDecoration: 'none',
-        borderRadius: '5px', zIndex: 999
-      }}>
-        Customize
-      </Link>
-
-      <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
-        <SceneJSX onCreated={onSceneReady}>
-          <hemisphericLight name="AmbientLight" intensity={0.3} direction={Vector3.Up()} />
-          <directionalLight
-            name="DirectionalLight"
-            direction={new Vector3(-1, -2, -1)}
-            intensity={0.7}
-          />
-          <ground
-            name="Ground"
-            width={400}
-            height={400}
-            subdivisions={2}
-            position={new Vector3(0, 0, 0)}
-            receiveShadows
-          >
-            <standardMaterial
-              name="GroundMaterial"
-              diffuseColor={new Color3(0.5, 0.5, 0.5)}
-              specularColor={new Color3(0, 0, 0)}
-            />
-          </ground>
-          <PlayerCar onCarRootReady={setCarRoot} mobileInput={mobileInput} />
-        </SceneJSX>
+    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      <Engine antialias adaptToDeviceRatio canvasId="msdf-canvas">
+        <SceneJSX onCreated={onSceneReady}>{null}</SceneJSX>
       </Engine>
 
-      {isMobile.current && (
-        <div style={{
+      {/* overlay race buttons */}
+      <div
+        style={{
           position: 'absolute',
           bottom: 20,
           width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 10,
-          zIndex: 999
-        }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              style={buttonStyle('green')}
-              onTouchStart={() => handleMobileInput('w', true)}
-              onTouchEnd={() => handleMobileInput('w', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Accelerate
-            </button>
-            <button
-              style={buttonStyle('red')}
-              onTouchStart={() => handleMobileInput('s', true)}
-              onTouchEnd={() => handleMobileInput('s', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Reverse
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: 40 }}>
-            <button
-              style={buttonStyle('blue')}
-              onTouchStart={() => handleMobileInput('a', true)}
-              onTouchEnd={() => handleMobileInput('a', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Left
-            </button>
-            <button
-              style={buttonStyle('blue')}
-              onTouchStart={() => handleMobileInput('d', true)}
-              onTouchEnd={() => handleMobileInput('d', false)}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              Right
-            </button>
-          </div>
-        </div>
-      )}
+          textAlign: 'center',
+          zIndex: 10,
+        }}
+      >
+        {STORYLINES.map((slug) => (
+          <button
+            key={slug}
+            onClick={() => handleSelect(slug)}
+            style={{
+              margin: '0 8px',
+              padding: '8px 16px',
+              fontSize: '1rem',
+              cursor: 'pointer',
+            }}
+          >
+            {slug
+              .split('-')
+              .map(w => w[0].toUpperCase() + w.slice(1))
+              .join(' ')
+            }
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
-
-const buttonStyle = (color: string): React.CSSProperties => ({
-  padding: '10px 20px',
-  backgroundColor: color,
-  color: 'white',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '16px',
-  touchAction: 'none'
-})
 
 export default App
