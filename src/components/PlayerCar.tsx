@@ -125,7 +125,7 @@ const PlayerCar: React.FC<PlayerCarProps> = ({
       const agg = carBodyRef.current
       const collider = colliderRef.current
       if (!root || !agg || !collider) return
-      const body = (agg as any).body
+      const body = agg.body
       const dt = scene.getEngine().getDeltaTime() / 1000
 
       const input = { ...inputMap.current, ...mobileInputRef.current }

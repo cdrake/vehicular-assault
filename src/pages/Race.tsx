@@ -106,10 +106,10 @@ const Race: React.FC = () => {
 
   // load map
   useEffect(() => {
-    if (!scene) return
+    if (!scene || !physicsEnabled) return
     const mats = createMaterials(scene)
     createMapFromJson(scene, mapJson, mats, scene.getPhysicsEngine()!)
-  }, [scene, mapJson])
+  }, [scene, physicsEnabled, mapJson])
 
   // follow camera
   useEffect(() => {

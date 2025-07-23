@@ -1,15 +1,10 @@
-// MapLoader.tsx
-
 import { Scene } from '@babylonjs/core/scene'
 import { Vector3 } from '@babylonjs/core/Maths/math'
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
-import { PhysicsImpostor } from '@babylonjs/core/Physics/physicsImpostor'
+import { PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics'
 import type { IPhysicsEngine } from '@babylonjs/core/Physics/IPhysicsEngine'
 
-/**
- * Types
- */
 export interface MapPrimitive {
   type: string
   name: string
@@ -22,8 +17,8 @@ export interface MapPrimitive {
     diameterBottom?: number
     subdivisions?: number
   }
-  position?: { x: number, y: number, z: number }
-  rotation?: { x: number, y: number, z: number }
+  position?: { x: number; y: number; z: number }
+  rotation?: { x: number; y: number; z: number }
   material?: string
   physics?: {
     mass?: number
@@ -32,32 +27,29 @@ export interface MapPrimitive {
   metadata?: Record<string, unknown>
 }
 
-
 export interface MapData {
   name: string
   description?: string
   primitives: MapPrimitive[]
 }
 
-/**
- * Helper to map type to PhysicsImpostor type
- */
-function getImpostorType(type: string): number {
+function getShape(type: string): PhysicsShapeType {
   switch (type) {
     case 'box':
     case 'ground':
     case 'plane':
-      return PhysicsImpostor.BoxImpostor
+      return PhysicsShapeType.BOX
     case 'cylinder':
+      return PhysicsShapeType.CYLINDER
     case 'sphere':
-      return PhysicsImpostor.SphereImpostor
+      return PhysicsShapeType.SPHERE
     default:
-      return PhysicsImpostor.MeshImpostor
+      return PhysicsShapeType.MESH
   }
 }
 
 /**
- * Creates meshes from JSON map definition
+ * Creates meshes from JSON map definition, with optional physics.
  */
 export function createMapFromJson(
   scene: Scene,
@@ -70,11 +62,11 @@ export function createMapFromJson(
     return
   }
 
-  mapData.primitives.forEach((item: MapPrimitive) => {
+  mapData.primitives.forEach((item) => {
     let mesh
     const opts = item.size ?? {}
 
-    // Create correct primitive
+    // Create primitive
     switch (item.type) {
       case 'box':
         mesh = MeshBuilder.CreateBox(item.name, {
@@ -83,7 +75,6 @@ export function createMapFromJson(
           depth: opts.depth
         }, scene)
         break
-
       case 'cylinder':
         mesh = MeshBuilder.CreateCylinder(item.name, {
           diameterTop: opts.diameterTop,
@@ -91,20 +82,17 @@ export function createMapFromJson(
           height: opts.height
         }, scene)
         break
-
       case 'sphere':
         mesh = MeshBuilder.CreateSphere(item.name, {
           diameter: opts.diameter
         }, scene)
         break
-
       case 'plane':
         mesh = MeshBuilder.CreatePlane(item.name, {
           width: opts.width,
           height: opts.height
         }, scene)
         break
-
       case 'ground':
         mesh = MeshBuilder.CreateGround(item.name, {
           width: opts.width,
@@ -112,47 +100,45 @@ export function createMapFromJson(
           subdivisions: opts.subdivisions ?? 1
         }, scene)
         break
-
       default:
         console.warn(`Unknown primitive type: ${item.type}`)
         return
     }
 
-    // Apply position
+    // Position & rotation
     if (item.position) {
       mesh.position = new Vector3(
-        item.position.x ?? 0,
-        item.position.y ?? 0,
-        item.position.z ?? 0
+        item.position.x || 0,
+        item.position.y || 0,
+        item.position.z || 0
       )
     }
-
-    // Apply rotation
     if (item.rotation) {
       mesh.rotation = new Vector3(
-        item.rotation.x ?? 0,
-        item.rotation.y ?? 0,
-        item.rotation.z ?? 0
+        item.rotation.x || 0,
+        item.rotation.y || 0,
+        item.rotation.z || 0
       )
     }
 
-    // Apply material
+    // Material
     if (item.material && materials[item.material]) {
       mesh.material = materials[item.material]
     }
 
-    // Add physics impostor if needed
+    // Physics: use PhysicsAggregate when collision flag is true
     if (physicsEngine && item.physics?.collision) {
       const mass = item.physics.mass ?? 0
-      mesh.physicsImpostor = new PhysicsImpostor(
+      const shape = getShape(item.type)
+      new PhysicsAggregate(
         mesh,
-        getImpostorType(item.type),
-        { mass },
+        shape,
+        { mass, friction: 0.8, restitution: 0.1 },
         scene
       )
     }
 
-    // Add metadata
+    // Metadata
     if (item.metadata) {
       mesh.metadata = item.metadata
     }
