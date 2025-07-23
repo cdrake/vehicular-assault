@@ -1,6 +1,6 @@
 {
   "name": "Turbo Tech Takedown",
-  "description": "Neon-lit city streets with a high-tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",
+  "description": "Neon‑lit city streets with a high‑tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",
   "primitives": [
     {
       "type": "ground",
@@ -74,5 +74,11 @@
       "material": "building",
       "physics": { "mass": 0, "collision": true }
     }
+  ],
+  "pylons": [
+    { "position": { "x": 50, "y": 1.5, "z": 0 } },
+    { "position": { "x": -50, "y": 1.5, "z": 0 }, "interval": 2500 },
+    { "position": { "x": 0, "y": 1.5, "z": 50 }, "interval": 1800 },
+    { "position": { "x": 0, "y": 1.5, "z": -50 } }
   ]
 }
