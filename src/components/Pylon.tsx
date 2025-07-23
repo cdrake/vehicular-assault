@@ -1,4 +1,5 @@
 // src/components/Pylon.tsx
+
 import React, { useEffect, useRef } from 'react';
 import {
   MeshBuilder,
@@ -6,37 +7,33 @@ import {
   Color3,
   StandardMaterial,
   GlowLayer,
-  LinesMesh,
   Mesh,
   TransformNode
 } from '@babylonjs/core';
+import { PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics';
 import { useScene, useBeforeRender } from 'react-babylonjs';
 
 export interface PylonProps {
   /** Where to place the pylon in world space */
   position: Vector3;
-  /** A ref to the player mesh so we know where to aim */
-  targetRef: React.RefObject<TransformNode>
+  /** A ref to the player’s transform node so we know where to aim */
+  targetRef: React.RefObject<TransformNode>;
   /** Mean interval between strikes (ms) */
   interval?: number;
 }
 
-export const Pylon: React.FC<PylonProps> = ({
-  position,
-  targetRef,
-  interval = 2000
-}) => {
+export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 2000 }) => {
   const scene = useScene()!;
   const pylonRef = useRef<Mesh>(null!);
   const glowRef = useRef<GlowLayer>(null!);
   const timeoutRef = useRef<number>(0);
 
-  // 1️⃣ Create the pylon + glow layer once
+  // Create a larger, solid pylon + glow layer + physics
   useEffect(() => {
-    // Cylinder for the pylon
+    // Solid cylinder for the pylon
     const cyl = MeshBuilder.CreateCylinder(
       'pylon',
-      { diameter: 10, height: 30 },
+      { diameter: 10, height: 30, tessellation: 16 },
       scene
     );
     cyl.position = position.clone();
@@ -45,7 +42,15 @@ export const Pylon: React.FC<PylonProps> = ({
     cyl.material = mat;
     pylonRef.current = cyl;
 
-    // Glow so our lightning looks epic
+    // Add physics collider
+    new PhysicsAggregate(
+      cyl,
+      PhysicsShapeType.CYLINDER,
+      { mass: 0, friction: 0.8, restitution: 0.1 },
+      scene
+    );
+
+    // Glow for the pylon
     const glow = new GlowLayer('glow', scene);
     glow.intensity = 0.6;
     glowRef.current = glow;
@@ -57,14 +62,14 @@ export const Pylon: React.FC<PylonProps> = ({
     };
   }, [scene, position]);
 
-  // 2️⃣ Function to spawn a single bolt
+  // Strike function: create a solid bolt using a tube
   const strike = () => {
     const start = pylonRef.current.position.clone();
     const end = targetRef.current!.position.clone();
-    const segments = 8;
-    const variance = 0.5;
+    const segments = 12;
+    const variance = 0.3;
 
-    // build a jagged path
+    // Build jagged path
     const points: Vector3[] = [];
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
@@ -75,25 +80,28 @@ export const Pylon: React.FC<PylonProps> = ({
       points.push(p);
     }
 
-    const bolt = MeshBuilder.CreateLines(
+    // Create a tube mesh along the lightning path for a solid bolt
+    const bolt = MeshBuilder.CreateTube(
       'bolt',
-      { points, updatable: false },
+      { path: points, radius: 0.05, sideOrientation: Mesh.DOUBLESIDE },
       scene
-    ) as LinesMesh;
-    bolt.color = new Color3(0.8, 0.8, 1);
-    glowRef.current!.addExcludedMesh(bolt);
+    );
+    const boltMat = new StandardMaterial('boltMat', scene);
+    boltMat.emissiveColor = new Color3(0.8, 0.8, 1);
+    bolt.material = boltMat;
+    glowRef.current.addExcludedMesh(bolt);
 
-    // dispose after a brief flash
+    // Dispose after a brief flash
     setTimeout(() => bolt.dispose(), 100);
 
-    // schedule next strike
+    // Schedule next strike
     timeoutRef.current = window.setTimeout(
       strike,
       interval + (Math.random() - 0.5) * interval
     );
   };
 
-  // 3️⃣ Kick off the first strike once per render loop
+  // Kick off first strike
   useBeforeRender(() => {
     if (!timeoutRef.current) {
       timeoutRef.current = window.setTimeout(
