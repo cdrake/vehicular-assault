@@ -35,7 +35,6 @@ const STORYLINES = [
   'delivery-dash',
 ] as const
 type RaceSlug = typeof STORYLINES[number]
-const DEFAULT_RACE: RaceSlug = 'turbo-tech-takedown'
 
 const App: React.FC = () => {
   const navigate = useNavigate()
