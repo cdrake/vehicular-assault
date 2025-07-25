@@ -17,6 +17,7 @@ import {
   Viewport,
   Color3,
   PointerInfo,
+  GlowLayer,
   // Vector2,
 } from "@babylonjs/core";
 import {
@@ -81,6 +82,10 @@ function fireThroughReticle(
     const sphere = MeshBuilder.CreateSphere(`proj${i}`, { diameter: 0.1 }, scene);
     sphere.position.copyFrom(origin.add(off));
 
+    const projMat = new StandardMaterial(`projMat${i}`, scene);
+    projMat.emissiveColor = new Color3(1, 0, 0);
+    sphere.material = projMat;
+    
     // tag with damage if you like
     sphere.metadata = { strength: 25 };
 
@@ -219,6 +224,10 @@ const Race: React.FC = () => {
     const textRend  = await TextRenderer.CreateTextRendererAsync(font, s.getEngine());
     textRend.color = new Color4(1, 1, 1, 1);    // white
 
+    // add a glow layer for emissive meshes (pylons, projectiles, etc.)
+    const glow = new GlowLayer('globalGlow', s);
+    glow.intensity = 0.6;
+
     speedTextRef.current = textRend;
 
     const havok = await HavokPhysics();
@@ -282,11 +291,26 @@ const Race: React.FC = () => {
   useEffect(() => {
     if (!scene || !physicsEnabled) return;
     const mats: Record<string, StandardMaterial> = {};
-    ["concrete","wall","metal","building"].forEach((name) => {
-      const mat = new StandardMaterial(name, scene);
-      // set diffuseColor per name...
-      mats[name] = mat;
-    });
+    const concreteMat = new StandardMaterial("concreteMat", scene);
+    concreteMat.diffuseColor  = new Color3(0.6, 0.6, 0.6);
+    concreteMat.emissiveColor = new Color3(0.0, 0.0, 0.0);
+    mats["concrete"] = concreteMat;
+
+    const wallMat = new StandardMaterial("wallMat", scene);
+    wallMat.diffuseColor  = new Color3(0.9, 0.2, 0.2);    // bright red
+    // wallMat.emissiveColor = new Color3(0.5, 0.1, 0.1);
+    mats["wall"] = wallMat;
+
+    const metalMat = new StandardMaterial("metalMat", scene);
+    metalMat.diffuseColor  = new Color3(0.2, 0.2, 0.8);    // bright blue
+    // metalMat.emissiveColor = new Color3(0.1, 0.1, 0.5);
+    mats["metal"] = metalMat;
+
+    const buildingMat = new StandardMaterial("buildingMat", scene);
+    buildingMat.diffuseColor  = new Color3(0.2, 0.8, 0.2); // bright green
+    // buildingMat.emissiveColor = new Color3(0.1, 0.4, 0.1);
+    mats["building"] = buildingMat;
+
     const { pylons: loadedPylons, objectives: loadedObjectives } = createMapFromJson(scene, mapJson, mats, scene.getPhysicsEngine()!);
     setPylons(loadedPylons);
     setObjectives(loadedObjectives)
