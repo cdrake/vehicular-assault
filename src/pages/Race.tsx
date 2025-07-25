@@ -504,7 +504,7 @@ const Race: React.FC = () => {
           }}
         />
       </div>
-      <Link to="/" style={{position:"absolute",top:10,left:10,zIndex:999}}>Back</Link>
+      <Link to="/" style={{position:"absolute",top:10,right:10,zIndex:999}}>Back</Link>
        {/* START OVERLAY */}
       {!started && (
         <div
