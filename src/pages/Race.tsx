@@ -55,19 +55,35 @@ const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
 const isMobileDevice = () =>
   /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
-function fireThroughReticle(scene: Scene, reticle: TransformNode) {
-  const origin  = reticle.getAbsolutePosition();
-  const forward = reticle.getDirection(Vector3.Forward());
-  const offs    = [
-    reticle.getDirection(Vector3.Right()).scale(-0.1),
-    reticle.getDirection(Vector3.Right()).scale( 0.1),
+function fireThroughReticle(
+  scene: Scene,
+  carRoot: TransformNode,
+  reticle: TransformNode
+) {
+  // 1) Compute “nose” point on the car:
+  //    take the car’s forward vector and push out a bit so the shot
+  //    originates just in front of the bumper
+  const carPos   = carRoot.getAbsolutePosition();
+  const forward  = carRoot.getDirection(Vector3.Forward());
+  const origin   = carPos.add(forward.scale(2));  // 2 units ahead
+
+  // 2) Compute aim direction so that you still go through the reticle:
+  const targetPos  = reticle.getAbsolutePosition();
+  const dirToRet = targetPos.subtract(origin).normalize();
+
+  // 3) Fire two offset projectiles (like your spread)
+  const offsets = [
+    carRoot.getDirection(Vector3.Right()).scale(-0.1),
+    carRoot.getDirection(Vector3.Right()).scale( 0.1),
   ];
 
-  offs.forEach((offset, i) => {
+  offsets.forEach((off, i) => {
     const sphere = MeshBuilder.CreateSphere(`proj${i}`, { diameter: 0.1 }, scene);
-    sphere.position.copyFrom(origin.add(offset));
+    sphere.position.copyFrom(origin.add(off));
 
-    // attach Havok‐powered physics
+    // tag with damage if you like
+    sphere.metadata = { strength: 25 };
+
     const agg = new PhysicsAggregate(
       sphere,
       PhysicsShapeType.SPHERE,
@@ -75,13 +91,14 @@ function fireThroughReticle(scene: Scene, reticle: TransformNode) {
       scene
     );
 
-    // shoot it
-    agg.body.setLinearVelocity(forward.scale(60));
+    // 4) Send it flying *through* the reticle point
+    agg.body.setLinearVelocity(dirToRet.scale(60));
 
-    // auto‑remove mesh after a few seconds
+    // clean up
     setTimeout(() => sphere.dispose(), 4000);
   });
 }
+
 
 
 const Race: React.FC = () => {
@@ -116,6 +133,7 @@ const Race: React.FC = () => {
   // player
   const [playerHP,    setPlayerHP]    = useState(100);
   const [playerMaxHP] = useState(100);
+  const [isDead,      setIsDead]      = useState(false);
 
   // HUD
   const reticleRef = useRef<TransformNode | null>(null);
@@ -152,6 +170,13 @@ const Race: React.FC = () => {
 
   // === handle the “Start” button click ===
   const handleStart = () => {
+    // if we’re restarting after death, restore HP
+    if (carRootRef.current?.metadata) {
+      carRootRef.current.metadata.hitpoints = playerMaxHP;
+      setPlayerHP(playerMaxHP);
+    }
+    setIsDead(false);
+
     // 1) Ensure we have a start‐SFX audio element
     if (!startSfxRef.current) {
       startSfxRef.current = new Audio(START_URL);
@@ -295,6 +320,7 @@ const Race: React.FC = () => {
           hitpoints:    100,   // starting HP
           maxHitpoints: 100,   // for any UI bars or regen logic
         };
+        
         carRootRef.current = root;
 
         // collider box
@@ -326,9 +352,9 @@ const Race: React.FC = () => {
                 // 1) Create a small reticle group parented to the car root:
         const reticle = new TransformNode("reticleRoot", scene);
         reticle.parent   = root;         // follow the car’s position & rotation
-        reticle.position = new Vector3(0, 0.5, -6);  // tweak Y (height) & Z (forward offset)
+        reticle.position = new Vector3(0, 0.5, 6);  // tweak Y (height) & Z (forward offset)
         // ** Rotate 90° about X so the ring faces you head‑on **
-        reticle.rotation.x = Math.PI / 2;  // lift the ring to face the camera
+        reticle.rotation.x = -Math.PI / 2;  // lift the ring to face the camera
 
         // 2) A simple thin ring (circle) for the outer part
         const ringMat = new StandardMaterial("ringMat", scene);
@@ -406,7 +432,7 @@ const Race: React.FC = () => {
 
       // forward
       const mat = Matrix.FromQuaternionToRef(col.rotationQuaternion!, new Matrix());
-      const forward = Vector3.TransformCoordinates(new Vector3(0,0,1), mat);
+      const forward = Vector3.TransformCoordinates(new Vector3(0,0,-1), mat);
 
       const body = agg.body;
       body.setLinearVelocity(forward.scale(spd));
@@ -450,7 +476,7 @@ const Race: React.FC = () => {
     followCam.lockedTarget = colliderMesh;   // now lockedTarget is always a real mesh
     followCam.radius = 10;
     followCam.heightOffset = 5;
-    followCam.rotationOffset = 180;
+    followCam.rotationOffset = 0;
     followCam.cameraAcceleration = 0.1;
     followCam.maxCameraSpeed = 20;
     followCam.attachControl(true);
@@ -477,6 +503,13 @@ const Race: React.FC = () => {
 
     return () => {scene.onBeforeRenderObservable.remove(obs);}
   }, [scene, physicsEnabled, colliderMesh]);
+
+  useEffect(() => {
+    if (started && playerHP <= 0) {
+      setStarted(false);   // unmount pylons, stop damage
+      setIsDead(true);     // show “You died” overlay
+    }
+  }, [playerHP, started]);
 
   return (
     <div style={{width:"100vw",height:"100vh",position:"relative"}}>
@@ -506,18 +539,31 @@ const Race: React.FC = () => {
       </div>
       <Link to="/" style={{position:"absolute",top:10,right:10,zIndex:999}}>Back</Link>
        {/* START OVERLAY */}
-      {!started && (
+      {!started && !isDead && (
         <div
           style={{
             position: "absolute",
             top: 0, left: 0, right: 0, bottom: 0,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             background: "rgba(0,0,0,0.7)",
             zIndex: 20,
+            color: "white",
+            fontFamily: "sans-serif",
           }}
         >
+          <h1>Vehicular Assault</h1>
+          <p style={{ maxWidth: 400, textAlign: "center", marginBottom: "1rem" }}>
+            <strong>Controls:</strong><br/>
+            W / S: Accelerate / Brake<br/>
+            A / D: Steer Left / Right<br/>
+            Right‑Click: Fire Projectile
+          </p>
+          <p>
+              Left click on the canvas to enable controls
+            </p>
           <button
             onClick={handleStart}
             style={{
@@ -526,7 +572,35 @@ const Race: React.FC = () => {
               cursor: "pointer",
             }}
           >
-            Start
+            Start Race
+          </button>
+        </div>
+      )}
+      {isDead && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            zIndex: 20,
+          }}
+        >
+          <h1>You died</h1>
+          <button
+            onClick={handleStart}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.5rem',
+              cursor: 'pointer',
+            }}
+          >
+            Restart
           </button>
         </div>
       )}
@@ -565,13 +639,13 @@ const Race: React.FC = () => {
         const evt = pi.event as PointerEvent;
         if (evt.button === 2 && reticleRef.current && scene) {
           evt.preventDefault();
-          fireThroughReticle(scene, reticleRef.current);
+          fireThroughReticle(scene, carRootRef.current, reticleRef.current);
         }
       }
     }}>
           <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
           {/* <directionalLight name="dir" intensity={0.2} direction={new Vector3(-1,-2,-1)} /> */}
-          {physicsEnabled && carRootRef.current && pylons.map((p,i)=>(
+          {physicsEnabled && started && carRootRef.current && pylons.map((p,i)=>(
             <Pylon key={i} position={p.position} targetRef={carRootRef} interval={p.interval} />
           ))}
         </SceneJSX>
