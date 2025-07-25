@@ -35,6 +35,7 @@ import { Pylon } from "../components/Pylon";
 import { createMapFromJson } from "../components/MapLoader";
 import type { PylonDefinition } from "../components/MapLoader";
 import { TextRenderer, FontAsset } from '@babylonjs/addons/msdfText';
+import { PointerEventTypes } from "@babylonjs/core";
 
 import turboTechTakedownMap from "../assets/maps/turbo‑tech‑takedown.json";
 import streetJusticeMap from "../assets/maps/street‑justice.json";
@@ -52,6 +53,35 @@ const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
 
 const isMobileDevice = () =>
   /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+function fireThroughReticle(scene: Scene, reticle: TransformNode) {
+  const origin  = reticle.getAbsolutePosition();
+  const forward = reticle.getDirection(Vector3.Forward());
+  const offs    = [
+    reticle.getDirection(Vector3.Right()).scale(-0.1),
+    reticle.getDirection(Vector3.Right()).scale( 0.1),
+  ];
+
+  offs.forEach((offset, i) => {
+    const sphere = MeshBuilder.CreateSphere(`proj${i}`, { diameter: 0.1 }, scene);
+    sphere.position.copyFrom(origin.add(offset));
+
+    // attach Havok‐powered physics
+    const agg = new PhysicsAggregate(
+      sphere,
+      PhysicsShapeType.SPHERE,
+      { mass: 1, friction: 0.2, restitution: 0.5 },
+      scene
+    );
+
+    // shoot it
+    agg.body.setLinearVelocity(forward.scale(60));
+
+    // auto‑remove mesh after a few seconds
+    setTimeout(() => sphere.dispose(), 4000);
+  });
+}
+
 
 const Race: React.FC = () => {
   // map selection
@@ -81,6 +111,9 @@ const Race: React.FC = () => {
   const carBodyRef = useRef<PhysicsAggregate>(null!);
   const frontPivotsRef = useRef<TransformNode[]>([]);
   const wheelsRef = useRef<AbstractMesh[]>([]);
+
+  // HUD
+  const reticleRef = useRef<TransformNode | null>(null);
 
   // cameras
   // replace your old single camRef…
@@ -158,7 +191,18 @@ const Race: React.FC = () => {
     speedTextRef.current = textRend;
 
     const havok = await HavokPhysics();
-    s.enablePhysics(new Vector3(0, -9.81, 0), new HavokPlugin(true, havok));
+    const hk = new HavokPlugin(true, havok);
+    s.enablePhysics(new Vector3(0, -9.81, 0), hk);
+
+    // Listen for *all* Havok collisions
+    hk.onCollisionObservable.add((collision) => {
+      // collision.collider is the body that moved,
+      // collision.collidee is the body it hit
+      
+      const a = collision.collider.transformNode;
+      const b = collision.collidedAgainst.transformNode
+      console.log(`💥 Collision: ${a?.name} ↔ ${b?.name}`);
+    });
 
     // ground collider
     const ground = s.getMeshByName("Ground");
@@ -308,6 +352,9 @@ const Race: React.FC = () => {
         );
         hLine.material = lineMat;
         hLine.parent   = reticle;
+        reticleRef.current = reticle;
+
+        
       })
       .catch(console.error);
   }, [scene, physicsEnabled]);
@@ -474,7 +521,15 @@ const Race: React.FC = () => {
       </div>
     )}
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
-        <SceneJSX onCreated={onSceneReady}>
+        <SceneJSX onCreated={onSceneReady} onPointerObservable={(pi) => {
+      if (pi.type === PointerEventTypes.POINTERDOWN) {
+        const evt = pi.event as PointerEvent;
+        if (evt.button === 2 && reticleRef.current && scene) {
+          evt.preventDefault();
+          fireThroughReticle(scene, reticleRef.current);
+        }
+      }
+    }}>
           <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
           {/* <directionalLight name="dir" intensity={0.2} direction={new Vector3(-1,-2,-1)} /> */}
           {physicsEnabled && pylons.map((p,i)=>(
