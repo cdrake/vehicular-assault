@@ -41,6 +41,7 @@ export interface MapData {
   name: string
   description?: string
   primitives: MapPrimitive[]
+  objectives?: string[]
   /** Optional list of AI pylons to spawn */
   pylons?: PylonJSON[]
 }
@@ -76,10 +77,10 @@ export function createMapFromJson(
   mapData: MapData,
   materials: Record<string, StandardMaterial>,
   physicsEngine?: IPhysicsEngine | null
-): PylonDefinition[] {
+): { pylons: PylonDefinition[]; objectives: string[] } {
   if (!mapData?.primitives) {
     console.warn('No primitives in map data')
-    return []
+    return {pylons: [], objectives: []}
   }
 
   mapData.primitives.forEach((item) => {
@@ -166,6 +167,7 @@ export function createMapFromJson(
 
   // Extract any pylons defined in the map JSON
   const pylons: PylonDefinition[] = []
+  const objectives = mapData.objectives ?? [];
   if (mapData.pylons) {
     mapData.pylons.forEach((p) => {
       pylons.push({
@@ -175,5 +177,5 @@ export function createMapFromJson(
     })
   }
 
-  return pylons
+  return {pylons, objectives}
 }

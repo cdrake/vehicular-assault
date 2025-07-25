@@ -15,7 +15,7 @@ import {
   ActionManager,
   ExecuteCodeAction,
   Viewport,
-  Vector2,
+  // Vector2,
 } from "@babylonjs/core";
 import {
   FreeCamera,
@@ -97,8 +97,9 @@ const Race: React.FC = () => {
   const speedRef = useRef(0);
   const steeringRef = useRef(0);
 
-  // pylons
+  // pylons & objectives
   const [pylons, setPylons] = useState<PylonDefinition[]>([]);
+  const [objectives, setObjectives] = useState<string[]>([]);
 
   // scene init: physics + ground + starter cam
   const onSceneReady = useCallback(async (s: Scene) => {
@@ -167,8 +168,10 @@ const Race: React.FC = () => {
       // set diffuseColor per name...
       mats[name] = mat;
     });
-    const defs = createMapFromJson(scene, mapJson, mats, scene.getPhysicsEngine()!);
-    setPylons(defs);
+    const { pylons: loadedPylons, objectives: loadedObjectives } = createMapFromJson(scene, mapJson, mats, scene.getPhysicsEngine()!);
+    setPylons(loadedPylons);
+    setObjectives(loadedObjectives)
+
   }, [scene, physicsEnabled, mapJson]);
 
   // load car + physics + input
@@ -361,6 +364,35 @@ const Race: React.FC = () => {
   return (
     <div style={{width:"100vw",height:"100vh",position:"relative"}}>
       <Link to="/" style={{position:"absolute",top:10,left:10,zIndex:999}}>Back</Link>
+      {/* Top‑left objectives list */}
+      {objectives.length > 0 && (
+      <div
+        style={{
+          position: "absolute",
+          top: 20,
+          left: 20,
+          color: "white",
+          fontFamily: "sans-serif",
+          textShadow: "0 0 5px rgba(0,0,0,0.7)",
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: "20px" }}>OBJECTIVES</h2>
+        <ul
+          style={{
+            margin: "4px 0 0 0",
+            padding: 0,
+            listStyle: "none",        // remove default bullets
+            fontSize: "16px",
+          }}
+        >
+          {objectives.map((obj, i) => (
+            <li key={i} style={{ marginBottom: 4 }}>
+              [&nbsp;&nbsp;] {obj}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <SceneJSX onCreated={onSceneReady}>
           <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
