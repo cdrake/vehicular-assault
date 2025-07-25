@@ -1,7 +1,7 @@
 // src/pages/Race.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Engine, Scene as SceneJSX } from "react-babylonjs";
+import { Engine, Scene as SceneJSX, useBeforeRender } from "react-babylonjs";
 import {
   Color4,
   Scene,
@@ -18,6 +18,7 @@ import {
   Color3,
   PointerInfo,
   GlowLayer,
+  Mesh,
   // Vector2,
 } from "@babylonjs/core";
 import {
@@ -56,6 +57,14 @@ const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
 const isMobileDevice = () =>
   /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
+interface Checkpoint {
+  id:   string;
+  pos:  Vector3;
+  name: string;
+  desc: string;
+  visited: boolean;
+}
+
 function fireThroughReticle(
   scene: Scene,
   carRoot: TransformNode,
@@ -85,7 +94,7 @@ function fireThroughReticle(
     const projMat = new StandardMaterial(`projMat${i}`, scene);
     projMat.emissiveColor = new Color3(1, 0, 0);
     sphere.material = projMat;
-    
+
     // tag with damage if you like
     sphere.metadata = { strength: 25 };
 
@@ -140,6 +149,7 @@ const Race: React.FC = () => {
   const [playerHP,    setPlayerHP]    = useState(100);
   const [playerMaxHP] = useState(100);
   const [isDead,      setIsDead]      = useState(false);
+  const [isWon,  setIsWon]    = useState(false);
 
   // HUD
   const reticleRef = useRef<TransformNode | null>(null);
@@ -170,9 +180,14 @@ const Race: React.FC = () => {
   const steeringRef = useRef(0);
 
   // pylons & objectives
-  const [pylons, setPylons] = useState<PylonDefinition[]>([]);
+  const [pylons, setPylons] = useState<PylonDefinition[]>([]);  
   const [objectives, setObjectives] = useState<string[]>([]);
-
+  // ─── hold the static objectives from the map JSON ───
+  const [mapObjectives, setMapObjectives] = useState<string[]>([]);
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [secretCrate, setSecretCrate] = useState<Checkpoint| null>(null);
+  const checkpointMarkersRef = useRef<Mesh[]>([]);
+  const checkpointDiscsRef   = useRef<Mesh[]>([]);
 
   // === handle the “Start” button click ===
   const handleStart = () => {
@@ -289,33 +304,130 @@ const Race: React.FC = () => {
 
   // load map + pylons
   useEffect(() => {
-    if (!scene || !physicsEnabled) return;
-    const mats: Record<string, StandardMaterial> = {};
-    const concreteMat = new StandardMaterial("concreteMat", scene);
-    concreteMat.diffuseColor  = new Color3(0.6, 0.6, 0.6);
-    concreteMat.emissiveColor = new Color3(0.0, 0.0, 0.0);
-    mats["concrete"] = concreteMat;
+  if (!scene || !physicsEnabled) return;
 
-    const wallMat = new StandardMaterial("wallMat", scene);
-    wallMat.diffuseColor  = new Color3(0.9, 0.2, 0.2);    // bright red
-    // wallMat.emissiveColor = new Color3(0.5, 0.1, 0.1);
-    mats["wall"] = wallMat;
+  // 1) Prepare your materials
+  const mats: Record<string, StandardMaterial> = {};
 
-    const metalMat = new StandardMaterial("metalMat", scene);
-    metalMat.diffuseColor  = new Color3(0.2, 0.2, 0.8);    // bright blue
-    // metalMat.emissiveColor = new Color3(0.1, 0.1, 0.5);
-    mats["metal"] = metalMat;
+  const concreteMat = new StandardMaterial("concreteMat", scene);
+  concreteMat.diffuseColor  = new Color3(0.6, 0.6, 0.6);
+  mats["concrete"] = concreteMat;
 
-    const buildingMat = new StandardMaterial("buildingMat", scene);
-    buildingMat.diffuseColor  = new Color3(0.2, 0.8, 0.2); // bright green
-    // buildingMat.emissiveColor = new Color3(0.1, 0.4, 0.1);
-    mats["building"] = buildingMat;
+  const wallMat = new StandardMaterial("wallMat", scene);
+  wallMat.diffuseColor  = new Color3(0.9, 0.2, 0.2);
+  mats["wall"] = wallMat;
 
-    const { pylons: loadedPylons, objectives: loadedObjectives } = createMapFromJson(scene, mapJson, mats, scene.getPhysicsEngine()!);
-    setPylons(loadedPylons);
-    setObjectives(loadedObjectives)
+  const metalMat = new StandardMaterial("metalMat", scene);
+  metalMat.diffuseColor  = new Color3(0.2, 0.2, 0.8);
+  mats["metal"] = metalMat;
 
-  }, [scene, physicsEnabled, mapJson]);
+  const buildingMat = new StandardMaterial("buildingMat", scene);
+  buildingMat.diffuseColor  = new Color3(0.2, 0.8, 0.2);
+  mats["building"] = buildingMat;
+
+  // 2) Load everything from JSON
+  const {
+    pylons: loadedPylons,
+    objectives: staticObjectives,
+    checkpoints: cpDefs,
+    secretCrate: scDef
+  } = createMapFromJson(
+    scene,
+    mapJson,
+    mats,
+    scene.getPhysicsEngine()!
+  );
+
+  // Clear any old markers
+  checkpointMarkersRef.current.forEach(m => m.dispose());
+  checkpointDiscsRef.current.forEach(d => d.dispose());
+  checkpointMarkersRef.current = [];
+  checkpointDiscsRef.current   = [];
+
+  // For each checkpoint, build a little ring on the ground
+  cpDefs.forEach(cp => {
+    // a flat torus (ring) 3 units across, 0.2 thick
+    const ring = MeshBuilder.CreateTorus(
+      `chk-marker-${cp.id}`,
+      { diameter: 3, thickness: 0.2, tessellation: 32 },
+      scene
+    );
+    // lift it just above ground
+    ring.position = cp.position.add(new Vector3(0, 0.1, 0));
+    // lie it flat
+    ring.rotation.x = Math.PI / 2;
+
+    // give it a bright emissive material
+    const mat = new StandardMaterial(`chkMat-${cp.id}`, scene);
+    mat.emissiveColor = new Color3(1, 0.8, 0);  // golden
+    ring.material = mat;
+
+    checkpointMarkersRef.current.push(ring);
+    const discMat = new StandardMaterial(`chkDiscMat-${cp.id}`, scene);
+    discMat.emissiveColor = new Color3(1, 0.8, 0); // same golden
+
+    const disc = MeshBuilder.CreateCylinder(
+      `chk-disc-${cp.id}`,
+      { diameter: 5, height: 0.1, tessellation: 32 },
+      scene
+    );
+    disc.position    = cp.position.clone();
+    disc.material    = discMat;
+    disc.rotation.x  = Math.PI / 2;   // lay flat
+    checkpointDiscsRef.current.push(disc);
+  });
+  // save them for later tick‑off logic
+  setMapObjectives(staticObjectives);
+
+  // 3) Initialize checkpoint & secret‐crate visited flags
+  setCheckpoints(
+    cpDefs.map(cp => ({
+      id:      cp.id,
+      name:    cp.name,
+      desc:    cp.description,  // map into your `desc`
+      pos:     cp.position,     // map into your `pos`
+      visited: false
+    }))
+  );
+
+  // likewise, for secretCrate, if your SecretCrate state type is:
+  // interface SecretCrate extends Checkpoint { }
+  // you’d do:
+  setSecretCrate(scDef ? {
+    id:      scDef.id,
+    name:    scDef.name,
+    desc:    scDef.description,
+    pos:     scDef.position,
+    visited: false
+  } : null);
+
+  // 4) Build initial objectives array:
+  //    - static map objectives (“Destroy AI pylons”, etc.)
+  //    - one entry per checkpoint (“Drive to Checkpoint 1”, etc.)
+  //    - one entry for the secret crate
+  const initialObjectives = [
+    ...staticObjectives,
+    ...cpDefs.map(cp => cp.description || cp.name),
+    scDef ? scDef.description || scDef.name : null
+  ].filter(Boolean) as string[];
+
+  setObjectives(initialObjectives);
+  setPylons(loadedPylons);
+
+  return () => {
+    checkpointMarkersRef.current.forEach(r => r.dispose());
+    checkpointMarkersRef.current = [];
+  };
+
+}, [scene, physicsEnabled, mapJson]);
+
+useBeforeRender(() => {
+  checkpointDiscsRef.current.forEach((disc, i) => {
+    const t = performance.now() * 0.005 + i
+    const s = 1 + 0.2 * Math.sin(t)
+    disc.scaling.x = disc.scaling.z = s
+  })
+});
 
   // load car + physics + input
   useEffect(() => {
@@ -490,9 +602,77 @@ const Race: React.FC = () => {
         const cam = scene.activeCamera!;
         textR.render(cam.getViewMatrix(), cam.getProjectionMatrix());
       }
+
+      // Objectives
+      // 1) Get the car’s world position
+      const carPos = carRootRef.current!.getAbsolutePosition();
+
+      // 2) Check each checkpoint
+      setCheckpoints(prev =>
+        prev.map(cp => {
+          if (!cp.visited && cp.pos.subtract(carPos).length() < 5) {
+            // mark visited when within 5 units
+            return { ...cp, visited: true };
+          }
+          return cp;
+        })
+      );
+
+      // 3) Check the secret crate
+      if (
+        secretCrate &&
+        !secretCrate.visited &&
+        secretCrate.pos.subtract(carPos).length() < 5
+      ) {
+        setSecretCrate({ ...secretCrate, visited: true });
+      }
+
     });
     return ()=>{scene.onBeforeRenderObservable.remove(obs);}
-  },[scene, colliderMesh]);
+  },[scene, colliderMesh, secretCrate]);
+
+  useEffect(() => {
+    const newObjs = [
+      ...mapObjectives,                            // map’s built‑in goals
+      ...checkpoints.map(cp => cp.visited
+        ? `✓ ${cp.name}`
+        : cp.desc
+      ),
+      secretCrate
+        ? (secretCrate.visited
+          ? `✓ ${secretCrate.name}`
+          : secretCrate.desc
+          )
+        : null
+    ].filter(Boolean) as string[];
+    setObjectives(newObjs);
+  }, [checkpoints, secretCrate, mapObjectives]);
+
+  useEffect(() => {
+    if (!started) return;                      // only win if the race is running
+    // if every objective string begins with “✓ ”
+    const allDone = objectives.length > 0
+                && objectives.every(o => o.startsWith('✓ '));
+    if (allDone) {
+      setIsWon(true);
+      setStarted(false);                       // stop the race (unpings pylons, input, etc.)
+    }
+  }, [objectives, started]);
+
+  useEffect(() => {
+  const newObjs = [
+    ...mapObjectives,
+    ...checkpoints.map(cp =>
+      cp.visited ? `✓ ${cp.name}` : cp.desc
+    ),
+    secretCrate
+      ? (secretCrate.visited 
+          ? `✓ ${secretCrate.name}` 
+          : secretCrate.desc)
+      : null
+  ].filter(Boolean) as string[];
+  setObjectives(newObjs);
+}, [mapObjectives, checkpoints, secretCrate]);
 
   // **FollowCamera** locking onto the carCollider
   useEffect(() => {
@@ -565,7 +745,7 @@ const Race: React.FC = () => {
       </div>
       <Link to="/" style={{position:"absolute",top:10,right:10,zIndex:999}}>Back</Link>
        {/* START OVERLAY */}
-      {!started && !isDead && (
+      {!started && !isDead && !isWon && (
         <div
           style={{
             position: "absolute",
@@ -630,35 +810,87 @@ const Race: React.FC = () => {
           </button>
         </div>
       )}
-      {/* Top‑left objectives list */}
-      {objectives.length > 0 && (
-      <div
-        style={{
-          position: "absolute",
-          top: 20,
-          left: 20,
-          color: "white",
-          fontFamily: "sans-serif",
-          textShadow: "0 0 5px rgba(0,0,0,0.7)",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: "20px" }}>OBJECTIVES</h2>
-        <ul
+      {/* — Victory overlay — */}
+      {isWon && (
+        <div
           style={{
-            margin: "4px 0 0 0",
-            padding: 0,
-            listStyle: "none",        // remove default bullets
-            fontSize: "16px",
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            zIndex: 20,
           }}
         >
-          {objectives.map((obj, i) => (
-            <li key={i} style={{ marginBottom: 4 }}>
-              [&nbsp;&nbsp;]&nbsp;{obj}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
+          <h1>You Won!</h1>
+          <button
+            onClick={() => {
+              // reset all your state back to before start:
+              setIsWon(false);
+              setStarted(false)
+              handleStart();      // this will reset HP, started=true, etc.
+            }}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.5rem',
+              cursor: 'pointer',
+            }}
+          >
+            Play Again
+          </button>
+        </div>
+      )}
+      {/* Top‑left objectives list */}
+      {objectives.length > 0 && (
+  <div
+    style={{
+      position: "absolute",
+      top: 20,
+      left: 20,
+      color: "white",
+      fontFamily: "sans-serif",
+      textShadow: "0 0 5px rgba(0,0,0,0.7)",
+    }}
+  >
+    <h2 style={{ margin: 0, fontSize: "20px" }}>OBJECTIVES</h2>
+    <ul
+      style={{
+        margin: "4px 0 0 0",
+        padding: 0,
+        listStyle: "none",        // remove default bullets
+        fontSize: "16px",
+      }}
+    >
+      {objectives.map((obj, i) => {
+        const done = obj.startsWith("✓ ");
+        // the text after the checkmark (or full string if not done)
+        const label = done ? obj.slice(2) : obj;
+        return (
+          <li key={i} style={{ marginBottom: 4, display: "flex", alignItems: "center" }}>
+            <span
+              style={{
+                display:        "inline-block",
+                width:          16,
+                textAlign:      "center",
+                marginRight:    6,
+                color:          done ? "limegreen" : "#888",
+                fontWeight:     "bold",
+              }}
+            >
+              {done ? "✔" : "○"}
+            </span>
+            <span>{label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <SceneJSX onCreated={onSceneReady} onPointerObservable={(pi: PointerInfo) => {
       if (pi.type === PointerEventTypes.POINTERDOWN) {
