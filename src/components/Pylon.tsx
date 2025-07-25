@@ -28,6 +28,15 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
   const glowRef = useRef<GlowLayer>(null!);
   const timeoutRef = useRef<number>(0);
 
+  // Maximum distance at which the pylon will aim at the player
+  const MAX_RANGE = 50;
+
+  // How much damage this pylon does per successful hit
+  const strengthRef = useRef<number>(5);
+
+  // How much health this pylon has before it’s destroyed
+  // const hitpointsRef = useRef<number>(100);
+
   // Create a larger, solid pylon + glow layer + physics
   useEffect(() => {
     // Solid cylinder for the pylon
@@ -38,7 +47,8 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
     );
     cyl.position = position.clone();
     const mat = new StandardMaterial('pylonMat', scene);
-    mat.emissiveColor = new Color3(0.2, 0.2, 1);
+    mat.diffuseColor   = new Color3(0.1, 0.1, 0.3);  
+    mat.emissiveColor  = new Color3(0.2, 0.6, 1.0);    // bright electric blue
     cyl.material = mat;
     pylonRef.current = cyl;
 
@@ -64,8 +74,30 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
 
   // Strike function: create a solid bolt using a tube
   const strike = () => {
+    const targetNode = targetRef.current;
+    // ── GUARD: bail out if we don’t yet have a target or its metadata
+    if (!targetNode || !targetNode.metadata) {
+      // schedule next attempt and exit
+      timeoutRef.current = window.setTimeout(strike, interval);
+      return;
+    }
+    
     const start = pylonRef.current.position.clone();
-    const end = targetRef.current!.position.clone();
+    let end: Vector3;
+
+    // If target within range → lock on; otherwise pick a random arc
+    const targetPos = targetRef.current!.position.clone();
+    const dist = Vector3.Distance(start, targetPos);
+
+    if (dist <= MAX_RANGE) {
+      const md = targetRef.current!.metadata!;
+      md.hitpoints = Math.max(0, md.hitpoints - strengthRef.current);
+      end = targetPos;
+    } else {
+      // random direction vector scaled to some arbitrary length (e.g. 10)
+      const randomDir = Vector3.Random().subtract(new Vector3(0.5, 0.5, 0.5)).normalize();
+      end = start.add(randomDir.scale(10));
+    }
     const segments = 12;
     const variance = 0.3;
 

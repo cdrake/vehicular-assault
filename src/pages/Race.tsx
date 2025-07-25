@@ -16,6 +16,7 @@ import {
   ExecuteCodeAction,
   Viewport,
   Color3,
+  PointerInfo,
   // Vector2,
 } from "@babylonjs/core";
 import {
@@ -111,6 +112,10 @@ const Race: React.FC = () => {
   const carBodyRef = useRef<PhysicsAggregate>(null!);
   const frontPivotsRef = useRef<TransformNode[]>([]);
   const wheelsRef = useRef<AbstractMesh[]>([]);
+
+  // player
+  const [playerHP,    setPlayerHP]    = useState(100);
+  const [playerMaxHP] = useState(100);
 
   // HUD
   const reticleRef = useRef<TransformNode | null>(null);
@@ -285,6 +290,11 @@ const Race: React.FC = () => {
         const root = (container.rootNodes[0] ?? container.meshes[0]) as TransformNode;
         root.name = "carRoot";
         root.position.y += 1;
+        // === initialize hitpoints on the player/car ===
+        root.metadata = {
+          hitpoints:    100,   // starting HP
+          maxHitpoints: 100,   // for any UI bars or regen logic
+        };
         carRootRef.current = root;
 
         // collider box
@@ -370,6 +380,10 @@ const Race: React.FC = () => {
       const col = colliderMesh;
       if (!root || !agg || !col) return;
 
+      if (root.metadata && typeof root.metadata.hitpoints === 'number') {
+        setPlayerHP(root.metadata.hitpoints);
+      }
+
       const dt = scene.getEngine().getDeltaTime()/1000;
       const input = { ...inputMap.current, ...mobileInputRef.current };
 
@@ -402,27 +416,28 @@ const Race: React.FC = () => {
       root.rotationQuaternion = col.rotationQuaternion!;
       wheelsRef.current.forEach(w=>w.rotate(Axis.X, spd*dt/2, Space.LOCAL));
 
-      // now update & draw the speed label:
-  const textR = speedTextRef.current;
-  if (textR) {
-    // get speed in km/h (assuming speedRef.current is m/s)
-    const kmh = Math.round(speedRef.current * 3.6);
 
-    // place it just above the minimap in world‐space
-    // Here I pick a point out in front of the minimap camera,
-    // e.g. at world coords (x, y, z) that correspond to the
-    // lower right corner of your map.  Tweak these so the text
-    // floats nicely above your circular minimap.
-    // const worldPos = new Vector3(
-    //   colliderMesh.position.x + 10,  // offset in X
-    //   2,                                     // slight height above ground
-    //   colliderMesh.position.z + 10   // offset in Z
-    // );
-    setSpeedKmh(kmh);    
-    // render it using your main (follow) camera:
-    const cam = scene.activeCamera!;
-    textR.render(cam.getViewMatrix(), cam.getProjectionMatrix());
-  }
+      // now update & draw the speed label:
+      const textR = speedTextRef.current;
+      if (textR) {
+        // get speed in km/h (assuming speedRef.current is m/s)
+        const kmh = Math.round(speedRef.current * 3.6);
+
+        // place it just above the minimap in world‐space
+        // Here I pick a point out in front of the minimap camera,
+        // e.g. at world coords (x, y, z) that correspond to the
+        // lower right corner of your map.  Tweak these so the text
+        // floats nicely above your circular minimap.
+        // const worldPos = new Vector3(
+        //   colliderMesh.position.x + 10,  // offset in X
+        //   2,                                     // slight height above ground
+        //   colliderMesh.position.z + 10   // offset in Z
+        // );
+        setSpeedKmh(kmh);    
+        // render it using your main (follow) camera:
+        const cam = scene.activeCamera!;
+        textR.render(cam.getViewMatrix(), cam.getProjectionMatrix());
+      }
     });
     return ()=>{scene.onBeforeRenderObservable.remove(obs);}
   },[scene, colliderMesh]);
@@ -465,6 +480,30 @@ const Race: React.FC = () => {
 
   return (
     <div style={{width:"100vw",height:"100vh",position:"relative"}}>
+      <div
+        style={{
+          position:    'absolute',
+          top:         10,
+          left:        '50%',
+          transform:   'translateX(-50%)',
+          width:       200,
+          height:      16,
+          background:  '#444',
+          border:      '1px solid #222',
+          borderRadius:'4px',
+          overflow:    'hidden',
+          zIndex:      999,
+        }}
+      >
+        <div
+          style={{
+            width:       `${(playerHP / playerMaxHP) * 100}%`,
+            height:      '100%',
+            background:  'limegreen',
+            transition:  'width 0.1s ease-out',
+          }}
+        />
+      </div>
       <Link to="/" style={{position:"absolute",top:10,left:10,zIndex:999}}>Back</Link>
        {/* START OVERLAY */}
       {!started && (
@@ -521,7 +560,7 @@ const Race: React.FC = () => {
       </div>
     )}
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
-        <SceneJSX onCreated={onSceneReady} onPointerObservable={(pi) => {
+        <SceneJSX onCreated={onSceneReady} onPointerObservable={(pi: PointerInfo) => {
       if (pi.type === PointerEventTypes.POINTERDOWN) {
         const evt = pi.event as PointerEvent;
         if (evt.button === 2 && reticleRef.current && scene) {
@@ -532,7 +571,7 @@ const Race: React.FC = () => {
     }}>
           <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
           {/* <directionalLight name="dir" intensity={0.2} direction={new Vector3(-1,-2,-1)} /> */}
-          {physicsEnabled && pylons.map((p,i)=>(
+          {physicsEnabled && carRootRef.current && pylons.map((p,i)=>(
             <Pylon key={i} position={p.position} targetRef={carRootRef} interval={p.interval} />
           ))}
         </SceneJSX>
