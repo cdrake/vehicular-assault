@@ -296,8 +296,8 @@ const Race: React.FC = () => {
       <Link to="/" style={{position:"absolute",top:10,left:10,zIndex:999}}>Back</Link>
       <Engine antialias adaptToDeviceRatio canvasId="babylon-canvas">
         <SceneJSX onCreated={onSceneReady}>
-          <hemisphericLight name="ambient" intensity={0.3} direction={Vector3.Up()} />
-          <directionalLight name="dir" intensity={0.7} direction={new Vector3(-1,-2,-1)} />
+          <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
+          {/* <directionalLight name="dir" intensity={0.2} direction={new Vector3(-1,-2,-1)} /> */}
           {physicsEnabled && pylons.map((p,i)=>(
             <Pylon key={i} position={p.position} targetRef={carRootRef} interval={p.interval} />
           ))}
@@ -314,7 +314,8 @@ const Race: React.FC = () => {
           right: 0,
           width: "25%",
           height: "25%",
-          backgroundColor: "rgba(0,0,0,0.5)",
+          backgroundColor: "rgba(0,0,0,0)",
+          border: "2px solid rgba(0,0,0,0.5)",  // subtle frame
           pointerEvents: "none",
           zIndex: 1,
         }}
