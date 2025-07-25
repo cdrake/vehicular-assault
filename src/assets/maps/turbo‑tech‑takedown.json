@@ -1,11 +1,6 @@
 {
   "name": "Turbo Tech Takedown",
-  "description": "Neon‑lit city streets with a high‑tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",
-  "objectives": [
-    "Destroy AI pylons",
-    "Drive to all checkpoints",
-    "Find secret data crate"
-  ],
+  "description": "Neon‑lit city streets with a high‑tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",  
   "primitives": [
     {
       "type": "ground",
@@ -50,8 +45,8 @@
     {
       "type": "box",
       "name": "DataCrate",
-      "size": { "width": 30, "height": 30, "depth": 30 },
-      "position": { "x": 0, "y": 15, "z": -50 },
+      "size": { "width": 2, "height": 2, "depth": 2 },
+      "position": { "x": 0, "y": 1, "z": -50 },
       "material": "building",
       "physics": { "mass": 0, "collision": true }
     },
@@ -85,5 +80,31 @@
     { "position": { "x": -50, "y": 1.5, "z": 0 }, "interval": 2500 },
     { "position": { "x": 0, "y": 1.5, "z": 50 }, "interval": 1800 },
     { "position": { "x": 0, "y": 1.5, "z": -50 } }
-  ]
+  ],
+  "checkpoints": [
+    {
+      "id": "chk1",
+      "name": "Neon Arch",
+      "description": "Pass under the Neon Arch",
+      "position": { "x": 0, "y": 0, "z": 150 }
+    },
+    {
+      "id": "chk2",
+      "name": "First EMP",
+      "description": "Navigate past the first EMP pylon",
+      "position": { "x": 50, "y": 0, "z": 0 }
+    },
+    {
+      "id": "chk3",
+      "name": "Second EMP",
+      "description": "Navigate past the second EMP pylon",
+      "position": { "x": -50, "y": 0, "z": 0 }
+    }
+  ],
+  "secretCrate": {
+    "id": "secret",
+    "name": "Data Crate",
+    "description": "Find the hidden data crate",    
+    "position": { "x": 0, "y": 1, "z": -50 }
+  }
 }

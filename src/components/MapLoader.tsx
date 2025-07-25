@@ -6,6 +6,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
 import { PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics'
 import type { IPhysicsEngine } from '@babylonjs/core/Physics/IPhysicsEngine'
+import type { AbstractMesh } from '@babylonjs/core'
 
 export interface MapPrimitive {
   type: string
@@ -29,12 +30,23 @@ export interface MapPrimitive {
   metadata?: Record<string, unknown>
 }
 
-// Pylon-specific JSON definition
 export interface PylonJSON {
-  /** World position of the pylon */
   position: { x: number; y: number; z: number }
-  /** How often (ms) this pylon fires (default: 2000) */
   interval?: number
+}
+
+export interface CheckpointJSON {
+  id: string
+  name: string
+  description: string
+  position: { x: number; y: number; z: number }
+}
+
+export interface SecretCrateJSON {
+  id: string
+  name: string
+  description: string
+  position: { x: number; y: number; z: number }
 }
 
 export interface MapData {
@@ -42,13 +54,27 @@ export interface MapData {
   description?: string
   primitives: MapPrimitive[]
   objectives?: string[]
-  /** Optional list of AI pylons to spawn */
   pylons?: PylonJSON[]
+  checkpoints?: CheckpointJSON[]
+  secretCrate?: SecretCrateJSON
 }
 
+// Runtime definitions
 export interface PylonDefinition {
   position: Vector3
   interval: number
+}
+export interface CheckpointDefinition {
+  id: string
+  name: string
+  description: string
+  position: Vector3
+}
+export interface SecretCrateDefinition {
+  id: string
+  name: string
+  description: string
+  position: Vector3
 }
 
 function getShape(type: string): PhysicsShapeType {
@@ -68,114 +94,101 @@ function getShape(type: string): PhysicsShapeType {
 
 /**
  * Creates meshes from JSON map definition, with optional physics,
- * and extracts any pylon definitions for the caller to instantiate.
- *
- * @returns an array of PylonDefinition for AI pylons in this map
+ * and extracts pylon, checkpoint, and secret crate definitions.
  */
 export function createMapFromJson(
   scene: Scene,
   mapData: MapData,
   materials: Record<string, StandardMaterial>,
   physicsEngine?: IPhysicsEngine | null
-): { pylons: PylonDefinition[]; objectives: string[] } {
+): {
+  pylons: PylonDefinition[]
+  objectives: string[]
+  checkpoints: CheckpointDefinition[]
+  secretCrate: SecretCrateDefinition | null
+} {
   if (!mapData?.primitives) {
     console.warn('No primitives in map data')
-    return {pylons: [], objectives: []}
+    return { pylons: [], objectives: [], checkpoints: [], secretCrate: null }
   }
 
+  // Instantiate primitives
   mapData.primitives.forEach((item) => {
-    let mesh
+    let mesh: AbstractMesh
     const opts = item.size ?? {}
 
-    // Create primitive
     switch (item.type) {
       case 'box':
-        mesh = MeshBuilder.CreateBox(item.name, {
-          width: opts.width,
-          height: opts.height,
-          depth: opts.depth
-        }, scene)
+        mesh = MeshBuilder.CreateBox(item.name, { width: opts.width, height: opts.height, depth: opts.depth }, scene)
         break
       case 'cylinder':
-        mesh = MeshBuilder.CreateCylinder(item.name, {
-          diameterTop: opts.diameterTop,
-          diameterBottom: opts.diameterBottom,
-          height: opts.height
-        }, scene)
+        mesh = MeshBuilder.CreateCylinder(item.name, { diameterTop: opts.diameterTop, diameterBottom: opts.diameterBottom, height: opts.height }, scene)
         break
       case 'sphere':
         mesh = MeshBuilder.CreateSphere(item.name, { diameter: opts.diameter }, scene)
         break
       case 'plane':
-        mesh = MeshBuilder.CreatePlane(item.name, {
-          width: opts.width,
-          height: opts.height
-        }, scene)
+        mesh = MeshBuilder.CreatePlane(item.name, { width: opts.width, height: opts.height }, scene)
         break
       case 'ground':
-        mesh = MeshBuilder.CreateGround(item.name, {
-          width: opts.width,
-          height: opts.height,
-          subdivisions: opts.subdivisions ?? 1
-        }, scene)
+        mesh = MeshBuilder.CreateGround(item.name, { width: opts.width, height: opts.height, subdivisions: opts.subdivisions ?? 1 }, scene)
         break
       default:
         console.warn(`Unknown primitive type: ${item.type}`)
         return
     }
 
-    // Position & rotation
     if (item.position) {
-      mesh.position = new Vector3(
-        item.position.x || 0,
-        item.position.y || 0,
-        item.position.z || 0
-      )
+      mesh.position = new Vector3(item.position.x, item.position.y, item.position.z)
     }
     if (item.rotation) {
-      mesh.rotation = new Vector3(
-        item.rotation.x || 0,
-        item.rotation.y || 0,
-        item.rotation.z || 0
-      )
+      mesh.rotation = new Vector3(item.rotation.x, item.rotation.y, item.rotation.z)
     }
-
-    // Apply material
     if (item.material && materials[item.material]) {
       mesh.material = materials[item.material]
     }
+    if (item.metadata) {
+      mesh.metadata = item.metadata
+    }
 
-    // Physics: use PhysicsAggregate when collision flag is true
     if (physicsEngine && item.physics?.collision) {
       const mass = item.physics.mass ?? 0
       const shape = getShape(item.type)
-      new PhysicsAggregate(
-        mesh,
-        shape,
-        { mass, friction: 0.8, restitution: 0.1 },
-        scene
-      )
-    }
-
-    // Metadata
-    if (item.metadata) {
-      mesh.metadata = item.metadata
+      new PhysicsAggregate(mesh, shape, { mass, friction: 0.8, restitution: 0.1 }, scene)
     }
 
     console.log(`Created mesh: ${mesh.name}`)
   })
 
-  // Extract any pylons defined in the map JSON
+  // Extract pylons
   const pylons: PylonDefinition[] = []
-  const objectives = mapData.objectives ?? [];
-  if (mapData.pylons) {
-    mapData.pylons.forEach((p) => {
-      pylons.push({
-        position: new Vector3(p.position.x || 0, p.position.y || 0, p.position.z || 0),
-        interval: p.interval ?? 2000
-      })
-    })
-  }
+  mapData.pylons?.forEach((p) => {
+    pylons.push({ position: new Vector3(p.position.x, p.position.y, p.position.z), interval: p.interval ?? 2000 })
+  })
 
-  return {pylons, objectives}
+  // Objectives
+  const objectives = mapData.objectives ? [...mapData.objectives] : []
+
+  // Extract checkpoints
+  const checkpoints: CheckpointDefinition[] = []
+  mapData.checkpoints?.forEach((cp) => {
+    checkpoints.push({
+      id: cp.id,
+      name: cp.name,
+      description: cp.description,
+      position: new Vector3(cp.position.x, cp.position.y, cp.position.z)
+    })
+  })
+
+  // Extract secret crate
+  const secretCrate: SecretCrateDefinition | null = mapData.secretCrate
+    ? {
+        id: mapData.secretCrate.id,
+        name: mapData.secretCrate.name,
+        description: mapData.secretCrate.description,
+        position: new Vector3(mapData.secretCrate.position.x, mapData.secretCrate.position.y, mapData.secretCrate.position.z)
+      }
+    : null
+
+  return { pylons, objectives, checkpoints, secretCrate }
 }
