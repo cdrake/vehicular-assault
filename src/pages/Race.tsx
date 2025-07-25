@@ -15,6 +15,7 @@ import {
   ActionManager,
   ExecuteCodeAction,
   Viewport,
+  Vector2,
 } from "@babylonjs/core";
 import {
   FreeCamera,
@@ -32,10 +33,14 @@ import HavokPhysics from "@babylonjs/havok";
 import { Pylon } from "../components/Pylon";
 import { createMapFromJson } from "../components/MapLoader";
 import type { PylonDefinition } from "../components/MapLoader";
+import { TextRenderer, FontAsset } from '@babylonjs/addons/msdfText';
 
 import turboTechTakedownMap from "../assets/maps/turbo‑tech‑takedown.json";
 import streetJusticeMap from "../assets/maps/street‑justice.json";
 import deliveryDashMap from "../assets/maps/delivery‑dash.json";
+
+const ROBOTO_JSON = 'https://assets.babylonjs.com/fonts/roboto-regular.json';
+const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png';
 
 const STORYLINES = ["turbo‑tech‑takedown", "street‑justice", "delivery‑dash"] as const;
 type RaceSlug = (typeof STORYLINES)[number];
@@ -75,6 +80,10 @@ const Race: React.FC = () => {
   const mainCamRef = useRef<FollowCamera | null>(null);
   const miniCamRef = useRef<FreeCamera | null>(null);
 
+  // telemetry
+  const speedTextRef = useRef<TextRenderer | null>(null);
+  const [speedKmh, setSpeedKmh] = useState(0);
+
 
   // input state
   const inputMap = useRef<Record<string, boolean>>({});
@@ -95,6 +104,14 @@ const Race: React.FC = () => {
   const onSceneReady = useCallback(async (s: Scene) => {
     setScene(s);
     s.clearColor = new Color4(0.05, 0.05, 0.05, 1);
+
+    // load MSDF font & make a TextRenderer
+    const sdfDef = await (await fetch(ROBOTO_JSON)).text();
+    const font      = new FontAsset(sdfDef, ROBOTO_PNG);
+    const textRend  = await TextRenderer.CreateTextRendererAsync(font, s.getEngine());
+    textRend.color = new Color4(1, 1, 1, 1);    // white
+
+    speedTextRef.current = textRend;
 
     const havok = await HavokPhysics();
     s.enablePhysics(new Vector3(0, -9.81, 0), new HavokPlugin(true, havok));
@@ -251,6 +268,56 @@ const Race: React.FC = () => {
       root.position.copyFrom(col.position);
       root.rotationQuaternion = col.rotationQuaternion!;
       wheelsRef.current.forEach(w=>w.rotate(Axis.X, spd*dt/2, Space.LOCAL));
+
+      // now update & draw the speed label:
+  const textR = speedTextRef.current;
+  if (textR) {
+    // get speed in km/h (assuming speedRef.current is m/s)
+    const kmh = Math.round(speedRef.current * 3.6);
+
+    // place it just above the minimap in world‐space
+    // Here I pick a point out in front of the minimap camera,
+    // e.g. at world coords (x, y, z) that correspond to the
+    // lower right corner of your map.  Tweak these so the text
+    // floats nicely above your circular minimap.
+    // const worldPos = new Vector3(
+    //   colliderMesh.position.x + 10,  // offset in X
+    //   2,                                     // slight height above ground
+    //   colliderMesh.position.z + 10   // offset in Z
+    // );
+    setSpeedKmh(kmh);
+
+    // clear any previous content and add this paragraph:
+    // textR.addParagraph(
+    //   `${kmh} km/h`,
+    //   {
+    //     maxWidth:      200,
+    //     lineHeight:    1,
+    //     letterSpacing: 1,
+    //     textAlign:     'center',
+    //     translate:     new Vector2(0, 0),
+    //   },
+    //   // world matrix to position the label
+    //   Matrix.Translation(worldPos.x, worldPos.y, worldPos.z)
+    // );
+    // textR.addParagraph(
+    //       `${kmh} km/h`,
+    //       {
+    //         maxWidth:     1500,
+    //         lineHeight:   1.2,
+    //         letterSpacing:2,
+    //         tabSize:      2,
+    //         textAlign:    'center',
+    //         translate:    new Vector2(0,  0),
+    //       },
+    //       // start close and centered
+    //       Matrix.Translation(-10, 15, 10)
+    //     )
+
+    // render it using your main (follow) camera:
+    const cam = scene.activeCamera!;
+    textR.render(cam.getViewMatrix(), cam.getProjectionMatrix());
+  }
     });
     return ()=>{scene.onBeforeRenderObservable.remove(obs);}
   },[scene, colliderMesh]);
@@ -320,6 +387,24 @@ const Race: React.FC = () => {
           zIndex: 1,
         }}
       />
+      {/* speed readout above minimap */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "26%",     // just above the 25%‐high minimap
+          right: "8%",
+          padding: "4px 8px",
+          background: "rgba(0,0,0,0)",
+          color: "white",
+          fontFamily: "sans-serif",
+          fontSize: "24px",
+          borderRadius: "4px",
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      >
+        {speedKmh} km/h
+      </div>
       {isMobileDevice() && (
         <div style={{position:"absolute",bottom:20,width:"100%",display:"flex",justifyContent:"center",gap:10}}>
           {["w","s","a","d"].map(k=>(
