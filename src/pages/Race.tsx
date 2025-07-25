@@ -121,6 +121,7 @@ const Race: React.FC = () => {
   // scene & physics
   const [scene, setScene] = useState<Scene | null>(null);
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
+  const [havokPlugin, setHavokPlugin] = useState<HavokPlugin | null>(null);
 
   // car refs
   const carRootRef = useRef<TransformNode>(null!);
@@ -222,6 +223,7 @@ const Race: React.FC = () => {
 
     const havok = await HavokPhysics();
     const hk = new HavokPlugin(true, havok);
+    setHavokPlugin(hk);
     s.enablePhysics(new Vector3(0, -9.81, 0), hk);
 
     // Listen for *all* Havok collisions
@@ -231,7 +233,7 @@ const Race: React.FC = () => {
       
       const a = collision.collider.transformNode;
       const b = collision.collidedAgainst.transformNode
-      console.log(`💥 Collision: ${a?.name} ↔ ${b?.name}`);
+      console.log(`Collision: ${a?.name} ↔ ${b?.name}`);
     });
 
     // ground collider
@@ -339,7 +341,7 @@ const Race: React.FC = () => {
         // wheels & pivots
         const all = container.meshes as AbstractMesh[];
         wheelsRef.current = all.filter(m=>m.name.toLowerCase().includes("wheel"));
-        const front = wheelsRef.current.filter(w=>w.position.z<0);
+        const front = wheelsRef.current.filter(w=>w.position.z>0);
         frontPivotsRef.current = front.map(w => {
           const p = new TransformNode(`${w.name}_pivot`, scene);
           p.parent = root;
@@ -646,7 +648,7 @@ const Race: React.FC = () => {
           <hemisphericLight name="ambient" intensity={0.2} direction={Vector3.Up()} />
           {/* <directionalLight name="dir" intensity={0.2} direction={new Vector3(-1,-2,-1)} /> */}
           {physicsEnabled && started && carRootRef.current && pylons.map((p,i)=>(
-            <Pylon key={i} position={p.position} targetRef={carRootRef} interval={p.interval} />
+            <Pylon key={i} position={p.position} targetRef={carRootRef} interval={p.interval} havokPlugin={havokPlugin!} />
           ))}
         </SceneJSX>
       </Engine>

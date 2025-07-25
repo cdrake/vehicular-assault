@@ -10,7 +10,7 @@ import {
   Mesh,
   TransformNode
 } from '@babylonjs/core';
-import { PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics';
+import { HavokPlugin, PhysicsAggregate, PhysicsShapeType } from '@babylonjs/core/Physics';
 import { useScene, useBeforeRender } from 'react-babylonjs';
 
 export interface PylonProps {
@@ -20,9 +20,10 @@ export interface PylonProps {
   targetRef: React.RefObject<TransformNode>;
   /** Mean interval between strikes (ms) */
   interval?: number;
+  havokPlugin: HavokPlugin;
 }
 
-export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 2000 }) => {
+export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 2000, havokPlugin }) => {
   const scene = useScene()!;
   const pylonRef = useRef<Mesh>(null!);
   const glowRef = useRef<GlowLayer>(null!);
@@ -35,7 +36,7 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
   const strengthRef = useRef<number>(5);
 
   // How much health this pylon has before it’s destroyed
-  // const hitpointsRef = useRef<number>(100);
+  const hitpointsRef = useRef<number>(100);
 
   // Create a larger, solid pylon + glow layer + physics
   useEffect(() => {
@@ -53,12 +54,45 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
     pylonRef.current = cyl;
 
     // Add physics collider
-    new PhysicsAggregate(
+    const agg = new PhysicsAggregate(
       cyl,
       PhysicsShapeType.CYLINDER,
       { mass: 0, friction: 0.8, restitution: 0.1 },
       scene
     );
+
+    agg.body.setCollisionCallbackEnabled(true);
+    // and listen for collision started events (Havok-specific flag access)
+    const observable = agg.body.getCollisionObservable();
+    observable.add((collisionEvent) => {
+      const otherNode = (
+        collisionEvent.collider.transformNode === cyl
+          ? collisionEvent.collidedAgainst.transformNode
+          : collisionEvent.collider.transformNode
+      );
+
+      // only care about projectiles named "proj..."
+      if (!otherNode || !otherNode.name.startsWith('proj')) {
+        return;
+      }
+
+      // read damage from projectile metadata
+      const dmg = otherNode.metadata?.strength ?? 10;
+      hitpointsRef.current -= dmg;
+
+      // flash material red briefly
+      mat.emissiveColor = new Color3(1, 0, 0);
+      setTimeout(() => {
+        mat.emissiveColor = new Color3(0.2, 0.6, 1.0);
+      }, 100);
+
+      // destroy if out of HP
+      if (hitpointsRef.current <= 0) {
+        cyl.dispose();
+        glowRef.current.dispose();
+        clearTimeout(timeoutRef.current);
+      }
+    });
 
     // Glow for the pylon
     const glow = new GlowLayer('glow', scene);
@@ -70,7 +104,7 @@ export const Pylon: React.FC<PylonProps> = ({ position, targetRef, interval = 20
       glow.dispose();
       clearTimeout(timeoutRef.current);
     };
-  }, [scene, position]);
+  }, [scene, position, havokPlugin]);
 
   // Strike function: create a solid bolt using a tube
   const strike = () => {
