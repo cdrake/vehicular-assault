@@ -15,6 +15,7 @@ import {
   ActionManager,
   ExecuteCodeAction,
   Viewport,
+  Color3,
   // Vector2,
 } from "@babylonjs/core";
 import {
@@ -267,6 +268,46 @@ const Race: React.FC = () => {
           w.position = Vector3.Zero();
           return p;
         });
+
+                // 1) Create a small reticle group parented to the car root:
+        const reticle = new TransformNode("reticleRoot", scene);
+        reticle.parent   = root;         // follow the car’s position & rotation
+        reticle.position = new Vector3(0, 0.5, -6);  // tweak Y (height) & Z (forward offset)
+        // ** Rotate 90° about X so the ring faces you head‑on **
+        reticle.rotation.x = Math.PI / 2;  // lift the ring to face the camera
+
+        // 2) A simple thin ring (circle) for the outer part
+        const ringMat = new StandardMaterial("ringMat", scene);
+        ringMat.emissiveColor = new Color3(1, 1, 1);
+        const ring = MeshBuilder.CreateTorus(
+          "reticleRing",
+          { diameter: 2, thickness: 0.05, tessellation: 64 },
+          scene
+        );
+        ring.material = ringMat;
+        ring.parent   = reticle;
+
+        // 3) Two thin lines (crosshair) along X and Y
+        const lineMat = new StandardMaterial("lineMat", scene);
+        lineMat.emissiveColor = new Color3(1, 1, 1);
+
+        // vertical line
+        const vLine = MeshBuilder.CreateBox(
+          "reticleV",
+          { width: 0.01, height: 0.3, depth: 0.01 },
+          scene
+        );
+        vLine.material = lineMat;
+        vLine.parent   = reticle;
+
+        // horizontal line
+        const hLine = MeshBuilder.CreateBox(
+          "reticleH",
+          { width: 0.3, height: 0.01, depth: 0.01 },
+          scene
+        );
+        hLine.material = lineMat;
+        hLine.parent   = reticle;
       })
       .catch(console.error);
   }, [scene, physicsEnabled]);
