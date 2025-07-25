@@ -1,6 +1,6 @@
 // src/pages/Race.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Engine, Scene as SceneJSX, useBeforeRender } from "react-babylonjs";
 import {
   Color4,
@@ -189,6 +189,7 @@ const Race: React.FC = () => {
   const checkpointMarkersRef = useRef<Mesh[]>([]);
   const checkpointDiscsRef   = useRef<Mesh[]>([]);
 
+  const navigate = useNavigate();
   // === handle the “Start” button click ===
   const handleStart = () => {
     // if we’re restarting after death, restore HP
@@ -799,14 +800,14 @@ useBeforeRender(() => {
         >
           <h1>You died</h1>
           <button
-            onClick={handleStart}
+            onClick={() => navigate('/')}
             style={{
               padding: '1rem 2rem',
               fontSize: '1.5rem',
               cursor: 'pointer',
             }}
           >
-            Restart
+            Back to Main
           </button>
         </div>
       )}
@@ -828,19 +829,14 @@ useBeforeRender(() => {
         >
           <h1>You Won!</h1>
           <button
-            onClick={() => {
-              // reset all your state back to before start:
-              setIsWon(false);
-              setStarted(false)
-              handleStart();      // this will reset HP, started=true, etc.
-            }}
+            onClick={() => navigate('/')}
             style={{
               padding: '1rem 2rem',
               fontSize: '1.5rem',
               cursor: 'pointer',
             }}
           >
-            Play Again
+            Back to Main
           </button>
         </div>
       )}
