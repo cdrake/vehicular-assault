@@ -2,9 +2,9 @@
   "name": "Turbo Tech Takedown",
   "description": "Neon‑lit city streets with a high‑tech convoy—dodge EMP pylons, navigate oil slick strips, and recover the stolen data crate.",
   "objectives": [
-    "Destroy enemy vehicles",
-    "Cross finish line",
-    "Rescue hostage"
+    "Destroy AI pylons",
+    "Drive to all checkpoints",
+    "Find secret data crate"
   ],
   "primitives": [
     {
