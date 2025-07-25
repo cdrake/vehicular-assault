@@ -553,7 +553,7 @@ const Race: React.FC = () => {
         >
           {objectives.map((obj, i) => (
             <li key={i} style={{ marginBottom: 4 }}>
-              [&nbsp;&nbsp;]{obj}
+              [&nbsp;&nbsp;]&nbsp;{obj}
             </li>
           ))}
         </ul>
