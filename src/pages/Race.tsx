@@ -14,10 +14,12 @@ import {
   AbstractMesh,
   ActionManager,
   ExecuteCodeAction,
+  Viewport,
 } from "@babylonjs/core";
 import {
   FreeCamera,
   FollowCamera,
+  Camera
 } from "@babylonjs/core/Cameras";        // ← import both cameras
 import { MeshBuilder, LoadAssetContainerAsync } from "@babylonjs/core";
 import {
@@ -68,6 +70,12 @@ const Race: React.FC = () => {
   const frontPivotsRef = useRef<TransformNode[]>([]);
   const wheelsRef = useRef<AbstractMesh[]>([]);
 
+  // cameras
+  // replace your old single camRef…
+  const mainCamRef = useRef<FollowCamera | null>(null);
+  const miniCamRef = useRef<FreeCamera | null>(null);
+
+
   // input state
   const inputMap = useRef<Record<string, boolean>>({});
   const [mobileInput, setMobileInput] = useState<Record<string, boolean>>({});
@@ -111,6 +119,24 @@ const Race: React.FC = () => {
     freeCam.keysLeft = [37];
     freeCam.keysRight = [39];
     s.activeCamera = freeCam;
+
+    // now build the minimap camera  
+    const miniCam = new FreeCamera("miniCam", new Vector3(0, 50, 0), s);
+    miniCam.setTarget(Vector3.Zero());
+    miniCam.mode = Camera.ORTHOGRAPHIC_CAMERA;
+    // size of the ortho window (tweak half to fit your map size)
+    const half = 30;
+    miniCam.orthoLeft   = -half;
+    miniCam.orthoRight  =  half;
+    miniCam.orthoTop    =  half;
+    miniCam.orthoBottom = -half;
+    // place it in bottom‑right corner
+    miniCam.viewport = new Viewport(0.75, 0, 0.25, 0.25);
+    miniCam.attachControl(false);
+
+    // now render both
+    s.activeCameras = [freeCam, miniCam];
+    miniCamRef.current = miniCam;
 
     setPhysicsEnabled(true);
   }, []);
@@ -241,10 +267,29 @@ const Race: React.FC = () => {
     followCam.cameraAcceleration = 0.1;
     followCam.maxCameraSpeed = 20;
     followCam.attachControl(true);
-    scene.activeCamera = followCam;
+    
+    // replace the freeCam with followCam, keep miniCam
+    scene.activeCameras = [followCam, miniCamRef.current!];
+    mainCamRef.current = followCam;
 
     return () => followCam.dispose();
   }, [scene, colliderMesh]);
+
+  // keep minimap centered on the car collider
+  useEffect(() => {
+    if (!scene || !colliderMesh|| !miniCamRef.current) return;
+
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      const carPos = colliderMesh.position;
+      // lock the ortho cam over the car (keep Y constant)
+      miniCamRef.current!.position.x = carPos.x;
+      miniCamRef.current!.position.z = carPos.z;
+      // ensure it’s looking straight down at the car
+      miniCamRef.current!.setTarget(carPos);
+    });
+
+    return () => {scene.onBeforeRenderObservable.remove(obs);}
+  }, [scene, physicsEnabled, colliderMesh]);
 
   return (
     <div style={{width:"100vw",height:"100vh",position:"relative"}}>
@@ -258,7 +303,22 @@ const Race: React.FC = () => {
           ))}
         </SceneJSX>
       </Engine>
-
+      {/* 
+        Translucent black overlay
+        Matches the 25% × 25% viewport of your minimap camera
+      */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: "25%",
+          height: "25%",
+          backgroundColor: "rgba(0,0,0,0.5)",
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      />
       {isMobileDevice() && (
         <div style={{position:"absolute",bottom:20,width:"100%",display:"flex",justifyContent:"center",gap:10}}>
           {["w","s","a","d"].map(k=>(
