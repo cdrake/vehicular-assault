@@ -42,6 +42,9 @@ import deliveryDashMap from "../assets/maps/delivery‑dash.json";
 const ROBOTO_JSON = 'https://assets.babylonjs.com/fonts/roboto-regular.json';
 const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png';
 
+const MUSIC_URL = "/vehicular-assault/assets/sounds/joyride_melodies.mp3";
+const START_URL = "/vehicular-assault/assets/sounds/car_start_sound.mp3";
+
 const STORYLINES = ["turbo‑tech‑takedown", "street‑justice", "delivery‑dash"] as const;
 type RaceSlug = (typeof STORYLINES)[number];
 const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
@@ -62,6 +65,9 @@ const Race: React.FC = () => {
       : selectedRace === "delivery‑dash"
       ? deliveryDashMap
       : turboTechTakedownMap;
+
+  // start
+  const [started, setStarted]    = useState(false);
 
   // scene & physics
   const [scene, setScene] = useState<Scene | null>(null);
@@ -84,6 +90,9 @@ const Race: React.FC = () => {
   const speedTextRef = useRef<TextRenderer | null>(null);
   const [speedKmh, setSpeedKmh] = useState(0);
 
+  // music
+  const musicRef                  = useRef<HTMLAudioElement | null>(null);
+  const startSfxRef               = useRef<HTMLAudioElement | null>(null);
 
   // input state
   const inputMap = useRef<Record<string, boolean>>({});
@@ -100,6 +109,39 @@ const Race: React.FC = () => {
   // pylons & objectives
   const [pylons, setPylons] = useState<PylonDefinition[]>([]);
   const [objectives, setObjectives] = useState<string[]>([]);
+
+
+  // === handle the “Start” button click ===
+  const handleStart = () => {
+    // 1) Ensure we have a start‐SFX audio element
+    if (!startSfxRef.current) {
+      startSfxRef.current = new Audio(START_URL);
+    }
+    const sfx = startSfxRef.current;
+    
+    // 2) Define how to start the music once SFX ends
+    const startMusic = () => {
+      // create/lookup music element
+      if (!musicRef.current) {
+        const m = new Audio(MUSIC_URL);
+        m.loop = true;
+        m.volume = 0.5;
+        musicRef.current = m;
+      }
+      musicRef.current.play();
+      sfx.removeEventListener("ended", startMusic);
+    };
+
+    // 3) Wire the ended event
+    sfx.addEventListener("ended", startMusic);
+
+    // 4) Play the start SFX
+    sfx.play();
+
+    // 5) Flip the "started" flag so the scene shows
+    setStarted(true);
+  };
+
 
   // scene init: physics + ground + starter cam
   const onSceneReady = useCallback(async (s: Scene) => {
@@ -288,35 +330,7 @@ const Race: React.FC = () => {
     //   2,                                     // slight height above ground
     //   colliderMesh.position.z + 10   // offset in Z
     // );
-    setSpeedKmh(kmh);
-
-    // clear any previous content and add this paragraph:
-    // textR.addParagraph(
-    //   `${kmh} km/h`,
-    //   {
-    //     maxWidth:      200,
-    //     lineHeight:    1,
-    //     letterSpacing: 1,
-    //     textAlign:     'center',
-    //     translate:     new Vector2(0, 0),
-    //   },
-    //   // world matrix to position the label
-    //   Matrix.Translation(worldPos.x, worldPos.y, worldPos.z)
-    // );
-    // textR.addParagraph(
-    //       `${kmh} km/h`,
-    //       {
-    //         maxWidth:     1500,
-    //         lineHeight:   1.2,
-    //         letterSpacing:2,
-    //         tabSize:      2,
-    //         textAlign:    'center',
-    //         translate:    new Vector2(0,  0),
-    //       },
-    //       // start close and centered
-    //       Matrix.Translation(-10, 15, 10)
-    //     )
-
+    setSpeedKmh(kmh);    
     // render it using your main (follow) camera:
     const cam = scene.activeCamera!;
     textR.render(cam.getViewMatrix(), cam.getProjectionMatrix());
@@ -364,6 +378,31 @@ const Race: React.FC = () => {
   return (
     <div style={{width:"100vw",height:"100vh",position:"relative"}}>
       <Link to="/" style={{position:"absolute",top:10,left:10,zIndex:999}}>Back</Link>
+       {/* START OVERLAY */}
+      {!started && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.7)",
+            zIndex: 20,
+          }}
+        >
+          <button
+            onClick={handleStart}
+            style={{
+              padding: "1rem 2rem",
+              fontSize: "1.5rem",
+              cursor: "pointer",
+            }}
+          >
+            Start
+          </button>
+        </div>
+      )}
       {/* Top‑left objectives list */}
       {objectives.length > 0 && (
       <div
@@ -387,7 +426,7 @@ const Race: React.FC = () => {
         >
           {objectives.map((obj, i) => (
             <li key={i} style={{ marginBottom: 4 }}>
-              [&nbsp;&nbsp;] {obj}
+              [&nbsp;&nbsp;]{obj}
             </li>
           ))}
         </ul>
