@@ -53,6 +53,7 @@ export interface MapData {
   name: string
   description?: string
   timeLimit?:   number
+  spawnPosition?: { x: number; y: number; z: number }
   primitives: MapPrimitive[]
   objectives?: string[]
   pylons?: PylonJSON[]
@@ -103,14 +104,20 @@ export function createMapFromJson(
   materials: Record<string, StandardMaterial>,
   physicsEngine?: IPhysicsEngine | null
 ): {
+  timeLimit:    number
+  spawnPosition: Vector3 | null
   pylons: PylonDefinition[]
   objectives: string[]
   checkpoints: CheckpointDefinition[]
   secretCrate: SecretCrateDefinition | null
 } {
+  const timeLimit    = mapData.timeLimit    ?? 0
+  const spawnPosition = mapData.spawnPosition
+      ? new Vector3(mapData.spawnPosition.x, mapData.spawnPosition.y, mapData.spawnPosition.z)
+      : null
   if (!mapData?.primitives) {
     console.warn('No primitives in map data')
-    return { pylons: [], objectives: [], checkpoints: [], secretCrate: null }
+    return { timeLimit, spawnPosition, pylons: [], objectives: [], checkpoints: [], secretCrate: null }
   }
 
   // Instantiate primitives
@@ -191,5 +198,5 @@ export function createMapFromJson(
       }
     : null
 
-  return { pylons, objectives, checkpoints, secretCrate }
+  return { timeLimit, spawnPosition, pylons, objectives, checkpoints, secretCrate }
 }

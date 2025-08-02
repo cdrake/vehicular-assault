@@ -223,6 +223,8 @@ const mapJson = jsonSrc as MapData;
   const timeLimit = mapJson.timeLimit ?? 0;
   const [timeLeft, setTimeLeft]     = useState<number>(timeLimit);
 
+  const [spawnPosition, setSpawnPosition] = useState<Vector3 | null>(null);
+
   const navigate = useNavigate();
   // === handle the “Start” button click ===
   const handleStart = () => {
@@ -470,6 +472,28 @@ const mapJson = jsonSrc as MapData;
     setPhysicsEnabled(true);
   }, []);
 
+  useEffect(() => {
+  // only start/stop on status changes or a new limit
+  if (!started || isPaused || timeLimit <= 0) return;
+
+  // set up a single interval
+  const id = window.setInterval(() => {
+    setTimeLeft(prev => {
+      if (prev <= 1) {
+        // last tick: clear interval and end the race
+        clearInterval(id);
+        setStarted(false);
+        setIsDead(true);
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+
+  // clean up when you pause or finish
+  return () => clearInterval(id);
+}, [started, isPaused, timeLimit]);
+
   // load map + pylons
   useEffect(() => {
   if (!scene || !physicsEnabled) return;
@@ -495,6 +519,8 @@ const mapJson = jsonSrc as MapData;
 
   // 2) Load everything from JSON
   const {
+    timeLimit: tl,
+    spawnPosition: sp,
     pylons: loadedPylons,
     objectives: staticObjectives,
     checkpoints: cpDefs,
@@ -505,6 +531,9 @@ const mapJson = jsonSrc as MapData;
     mats,
     scene.getPhysicsEngine()!
   );
+
+  setSpawnPosition(sp);
+  setTimeLeft(tl);
 
   // Clear any old markers
   checkpointMarkersRef.current.forEach(m => m.dispose());
@@ -612,7 +641,13 @@ const mapJson = jsonSrc as MapData;
         container.addAllToScene();
         const root = (container.rootNodes[0] ?? container.meshes[0]) as TransformNode;
         root.name = "carRoot";
-        root.position.y += 1;
+        
+        if (spawnPosition) {
+          root.position.copyFrom(spawnPosition);
+        } else {
+          root.position.y += 1;
+        }
+
         // === initialize hitpoints on the player/car ===
         root.metadata = {
           hitpoints:    100,   // starting HP

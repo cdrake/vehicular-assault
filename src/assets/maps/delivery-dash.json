@@ -2,11 +2,34 @@
   "name": "Delivery Dash",
   "description": "Navigate busy futuristic streets—clear roadblocks, dodge downed vehicles, and intercept the medical crate in time.",
   "timeLimit": 120,
+  "spawnPosition": { "x": 0, "y": 1, "z": 150 },
+
+  "checkpoints": [
+    {
+      "id": "checkpoint-1",
+      "name": "Checkpoint 1",
+      "description": "Pass through Checkpoint 1",
+      "position": { "x": 0, "y": 0.1, "z": 100 }
+    },
+    {
+      "id": "checkpoint-2",
+      "name": "Checkpoint 2",
+      "description": "Pass through Checkpoint 2",
+      "position": { "x": 0, "y": 0.1, "z": 0 }
+    },
+    {
+      "id": "checkpoint-3",
+      "name": "Checkpoint 3",
+      "description": "Pass through Checkpoint 3",
+      "position": { "x": 0, "y": 0.1, "z": -100 }
+    }
+  ],
+
   "primitives": [
     {
       "type": "ground",
       "name": "mainGround",
-      "size": { "width": 400, "height": 400, "subdivisions": 1 },
+      "size": { "width": 400, "height": 400 },
       "position": { "x": 0, "y": 0, "z": 0 },
       "material": "concrete",
       "physics": { "mass": 0, "collision": true }
@@ -50,15 +73,7 @@
       "position": { "x": 50, "y": 10, "z": -50 },
       "material": "building",
       "physics": { "mass": 0, "collision": true }
-    },
-    {
-      "type": "box",
-      "name": "RoadblockBarrier",
-      "size": { "width": 100, "height": 10, "depth": 5 },
-      "position": { "x": 0, "y": 5, "z": 0 },
-      "material": "wall",
-      "physics": { "mass": 0, "collision": true }
-    },
+    },   
     {
       "type": "cylinder",
       "name": "CorporateBot",
