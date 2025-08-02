@@ -497,7 +497,7 @@ const Race: React.FC = () => {
 
     checkpointMarkersRef.current.push(ring);
     const discMat = new StandardMaterial(`chkDiscMat-${cp.id}`, scene);
-    discMat.emissiveColor = new Color3(1, 0.8, 0); // same golden
+    discMat.emissiveColor = new Color3(0, 0.8, 0); // same golden
 
     const disc = MeshBuilder.CreateCylinder(
       `chk-disc-${cp.id}`,
@@ -506,7 +506,7 @@ const Race: React.FC = () => {
     );
     disc.position    = cp.position.clone();
     disc.material    = discMat;
-    disc.rotation.x  = Math.PI / 2;   // lay flat
+    disc.rotation.x  = 0; //Math.PI / 2;   // lay flat
     checkpointDiscsRef.current.push(disc);
   });
   // save them for later tick‑off logic
@@ -554,13 +554,13 @@ const Race: React.FC = () => {
 
 }, [scene, physicsEnabled, mapJson]);
 
-useBeforeRender(() => {
-  checkpointDiscsRef.current.forEach((disc, i) => {
-    const t = performance.now() * 0.005 + i
-    const s = 1 + 0.2 * Math.sin(t)
-    disc.scaling.x = disc.scaling.z = s
-  })
-});
+// useBeforeRender(() => {
+//   checkpointDiscsRef.current.forEach((disc, i) => {
+//     const t = performance.now() * 0.005 + i
+//     const s = 1 + 0.2 * Math.sin(t)
+//     disc.scaling.x = disc.scaling.z = s
+//   })
+// });
 
   // load car + physics + input
   useEffect(() => {
@@ -661,6 +661,23 @@ useBeforeRender(() => {
         hLine.parent   = reticle;
         reticleRef.current = reticle;
 
+        const flicker = scene.onBeforeRenderObservable.add(() => {
+          checkpointDiscsRef.current.forEach((disc, i) => {
+            const t = performance.now() * 0.005 + i;
+            const s = 1 + 0.2 * Math.sin(t);
+            disc.scaling.x = disc.scaling.z = s;
+          });
+        });
+
+        return () => {
+          // remove the flicker when the map unloads
+          scene.onBeforeRenderObservable.remove(flicker);
+          // dispose old markers & discs
+          checkpointMarkersRef.current.forEach(m => m.dispose());
+          checkpointDiscsRef.current.forEach(d => d.dispose());
+          checkpointMarkersRef.current = [];
+          checkpointDiscsRef.current   = [];
+        };
         
       })
       .catch(console.error);
