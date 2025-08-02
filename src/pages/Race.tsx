@@ -743,7 +743,7 @@ const mapJson = jsonSrc as MapData;
         
       })
       .catch(console.error);
-  }, [scene, physicsEnabled]);
+  }, [scene, physicsEnabled, spawnPosition]);
 
   
 
