@@ -39,6 +39,7 @@ import { createMapFromJson } from "../components/MapLoader";
 import type { PylonDefinition } from "../components/MapLoader";
 import { TextRenderer, FontAsset } from '@babylonjs/addons/msdfText';
 import { PointerEventTypes } from "@babylonjs/core";
+import { Scalar } from "@babylonjs/core/Maths/math.scalar";
 
 import turboTechTakedownMap from "../assets/maps/turbo‑tech‑takedown.json";
 import streetJusticeMap from "../assets/maps/street‑justice.json";
@@ -54,6 +55,11 @@ const STORYLINES = ["turbo‑tech‑takedown", "street‑justice", "delivery‑d
 type RaceSlug = (typeof STORYLINES)[number];
 const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
 const STORAGE_KEY = 'vehicularAssaultSave';
+const DEFAULT_RADIUS = 10;
+const DEFAULT_HEIGHT_OFFSET = 5;
+const DEFAULT_ROTATION_OFFSET = 0;
+const AUTO_RETURN_DELAY = 3000;
+
 
 const isMobileDevice = () =>
   /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
@@ -173,6 +179,9 @@ const Race: React.FC = () => {
   // replace your old single camRef…
   const mainCamRef = useRef<FollowCamera | null>(null);
   const miniCamRef = useRef<FreeCamera | null>(null);
+  const isUserInteractingRef = useRef(false);
+  const lastInteractionTimeRef = useRef<number>(0);
+  // const resumeTimeoutRef      = useRef<number | null>(null);  
 
   // telemetry
   const speedTextRef = useRef<TextRenderer | null>(null);
@@ -244,84 +253,113 @@ const Race: React.FC = () => {
   };
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && started) {
-        setIsPaused(p => !p);
-      }
+      const handler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && started) {
+          setIsPaused(p => !p);
+        }
+      };
+      window.addEventListener('keydown', handler);
+      return () => window.removeEventListener('keydown', handler);
+    }, [started]);
+
+    const handleSave = (): void => {
+    if (!carRootRef.current || !carBodyRef.current) {
+      alert('Game not ready to save');
+      return;
+    }
+    const pos = carRootRef.current.getAbsolutePosition();
+    const rot = carRootRef.current.rotationQuaternion!;
+    const vel = carBodyRef.current.body.getLinearVelocity();
+
+    const state: SaveData = {
+      car: {
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+        velocity: { x: vel.x, y: vel.y, z: vel.z },
+      },
+      playerHP,
+      checkpoints: checkpoints.map(cp => ({ id: cp.id, visited: cp.visited })),
+      secretVisited: secretCrate?.visited ?? false,
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [started]);
 
-  const handleSave = (): void => {
-  if (!carRootRef.current || !carBodyRef.current) {
-    alert('Game not ready to save');
-    return;
-  }
-  const pos = carRootRef.current.getAbsolutePosition();
-  const rot = carRootRef.current.rotationQuaternion!;
-  const vel = carBodyRef.current.body.getLinearVelocity();
-
-  const state: SaveData = {
-    car: {
-      position: { x: pos.x, y: pos.y, z: pos.z },
-      rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
-      velocity: { x: vel.x, y: vel.y, z: vel.z },
-    },
-    playerHP,
-    checkpoints: checkpoints.map(cp => ({ id: cp.id, visited: cp.visited })),
-    secretVisited: secretCrate?.visited ?? false,
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    alert('Game saved');
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  alert('Game saved');
-};
+  // 3) Load and reconstruct types
+  const handleLoad = (): void => {
+    const json = localStorage.getItem(STORAGE_KEY);
+    if (!json) {
+      alert('No save found');
+      return;
+    }
 
-// 3) Load and reconstruct types
-const handleLoad = (): void => {
-  const json = localStorage.getItem(STORAGE_KEY);
-  if (!json) {
-    alert('No save found');
-    return;
-  }
+    let state: SaveData;
+    try {
+      state = JSON.parse(json) as SaveData;
+    } catch {
+      alert('Save data corrupted');
+      return;
+    }
 
-  let state: SaveData;
-  try {
-    state = JSON.parse(json) as SaveData;
-  } catch {
-    alert('Save data corrupted');
-    return;
-  }
+    // restore position
+    const { position, rotation, velocity } = state.car;
+    carRootRef.current.position.set(position.x, position.y, position.z);
+    carRootRef.current.rotationQuaternion!.copyFromFloats(
+      rotation.x, rotation.y, rotation.z, rotation.w
+    );
+    carBodyRef.current.body.setLinearVelocity(
+      new Vector3(velocity.x, velocity.y, velocity.z)
+    );
 
-  // restore position
-  const { position, rotation, velocity } = state.car;
-  carRootRef.current.position.set(position.x, position.y, position.z);
-  carRootRef.current.rotationQuaternion!.copyFromFloats(
-    rotation.x, rotation.y, rotation.z, rotation.w
-  );
-  carBodyRef.current.body.setLinearVelocity(
-    new Vector3(velocity.x, velocity.y, velocity.z)
-  );
+    // restore HP
+    setPlayerHP(state.playerHP);
+    if (carRootRef.current.metadata) {
+      carRootRef.current.metadata.hitpoints = state.playerHP;
+    }
 
-  // restore HP
-  setPlayerHP(state.playerHP);
-  if (carRootRef.current.metadata) {
-    carRootRef.current.metadata.hitpoints = state.playerHP;
-  }
+    // restore checkpoints & secret crate
+    setCheckpoints(prev =>
+      prev.map(cp => ({
+        ...cp,
+        visited: state.checkpoints.some(s => s.id === cp.id && s.visited),
+      }))
+    );
+    if (secretCrate) {
+      setSecretCrate(prev => prev ? { ...prev, visited: state.secretVisited } : prev);
+    }
 
-  // restore checkpoints & secret crate
-  setCheckpoints(prev =>
-    prev.map(cp => ({
-      ...cp,
-      visited: state.checkpoints.some(s => s.id === cp.id && s.visited),
-    }))
-  );
-  if (secretCrate) {
-    setSecretCrate(prev => prev ? { ...prev, visited: state.secretVisited } : prev);
-  }
+    alert('Game loaded');
+  };
 
-  alert('Game loaded');
-};
+  useEffect(() => {
+  if (!scene) return;
+  const obs = scene.onBeforeRenderObservable.add(() => {
+    const cam = mainCamRef.current;
+    if (!cam || isUserInteractingRef.current) return;
+
+    // has the grace period passed?
+    const now = performance.now();
+    if (now - lastInteractionTimeRef.current < AUTO_RETURN_DELAY) {
+      return; // still giving the user time to look around
+    }
+
+    // delta-time in seconds
+    const dt = scene.getEngine().getDeltaTime() / 1000;
+    // return speed factor (e.g. 2 → ~0.5s to return)
+    const t = Scalar.Clamp(dt * 2, 0, 1);
+
+    cam.radius         = Scalar.Lerp(cam.radius,         DEFAULT_RADIUS,         t);
+    cam.heightOffset   = Scalar.Lerp(cam.heightOffset,   DEFAULT_HEIGHT_OFFSET,  t);
+    cam.rotationOffset = Scalar.Lerp(cam.rotationOffset, DEFAULT_ROTATION_OFFSET, t);
+  });
+
+  return () => {
+    scene.onBeforeRenderObservable.remove(obs);
+  };
+}, [scene]);
+
+
 
   // scene init: physics + ground + starter cam
   const onSceneReady = useCallback(async (s: Scene) => {
@@ -773,23 +811,41 @@ useBeforeRender(() => {
 
   // **FollowCamera** locking onto the carCollider
   useEffect(() => {
-    if (!scene || !colliderMesh) return;
+  if (!scene || !colliderMesh) return;
 
-    const followCam = new FollowCamera("FollowCam", new Vector3(0, 5, -10), scene);
-    followCam.lockedTarget = colliderMesh;   // now lockedTarget is always a real mesh
-    followCam.radius = 10;
-    followCam.heightOffset = 5;
-    followCam.rotationOffset = 0;
-    followCam.cameraAcceleration = 0.1;
-    followCam.maxCameraSpeed = 20;
-    followCam.attachControl(true);
-    
-    // replace the freeCam with followCam, keep miniCam
-    scene.activeCameras = [followCam, miniCamRef.current!];
-    mainCamRef.current = followCam;
+  const cam = new FollowCamera(
+    "FollowCam",
+    new Vector3(0, DEFAULT_HEIGHT_OFFSET, -DEFAULT_RADIUS),
+    scene
+  );
+  cam.lockedTarget       = colliderMesh;
+  cam.radius             = DEFAULT_RADIUS;
+  cam.heightOffset       = DEFAULT_HEIGHT_OFFSET;
+  cam.rotationOffset     = DEFAULT_ROTATION_OFFSET;
+  cam.cameraAcceleration = 0.1;
+  cam.maxCameraSpeed     = 20;
+  cam.attachControl(true);
 
-    return () => followCam.dispose();
-  }, [scene, colliderMesh]);
+  scene.activeCameras = [cam, miniCamRef.current!];
+  mainCamRef.current  = cam;
+
+  const pointerObserver = scene.onPointerObservable.add(pi => {
+  if (pi.type === PointerEventTypes.POINTERDOWN) {
+    isUserInteractingRef.current = true;
+  } else if (pi.type === PointerEventTypes.POINTERUP) {
+    isUserInteractingRef.current = false;
+    // mark the moment interaction ceased
+    lastInteractionTimeRef.current = performance.now();
+  }
+});
+
+  return () => {
+    scene.onPointerObservable.remove(pointerObserver);
+    cam.dispose();
+  };
+}, [scene, colliderMesh]);
+
+
 
   // keep minimap centered on the car collider
   useEffect(() => {
