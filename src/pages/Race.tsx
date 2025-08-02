@@ -48,8 +48,9 @@ import deliveryDashMap from "../assets/maps/delivery-dash.json";
 const ROBOTO_JSON = 'https://assets.babylonjs.com/fonts/roboto-regular.json';
 const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png';
 
-const MUSIC_URL = "/vehicular-assault/assets/sounds/joyride_melodies.mp3";
+const MUSIC_URL = "/vehicular-assault/assets/sounds/theme.wav";
 const START_URL = "/vehicular-assault/assets/sounds/car_start_sound.mp3";
+const PROJECTILE_URL = "/vehicular-assault/assets/sounds/projectile.wav";
 
 const STORYLINES = ["turbo-tech-takedown", "street-justice", "delivery-dash"] as const;
 type RaceSlug = (typeof STORYLINES)[number];
@@ -94,6 +95,11 @@ function fireThroughReticle(
   carRoot: TransformNode,
   reticle: TransformNode
 ) {
+  // ▶ play projectile SFX
+  const sfx = new Audio(PROJECTILE_URL);
+  sfx.volume = 0.7;
+  sfx.currentTime = 0;
+  sfx.play();
   // 1) Compute “nose” point on the car:
   //    take the car’s forward vector and push out a bit so the shot
   //    originates just in front of the bumper
@@ -924,7 +930,18 @@ const mapJson = jsonSrc as MapData;
   };
 }, [scene, colliderMesh]);
 
-
+useEffect(() => {
+    return () => {
+      if (musicRef.current) {
+        musicRef.current.pause();
+        musicRef.current.currentTime = 0;
+      }
+      if (startSfxRef.current) {
+        startSfxRef.current.pause();
+        startSfxRef.current.currentTime = 0;
+      }
+    };
+  }, []);
 
   // keep minimap centered on the car collider
   useEffect(() => {
