@@ -145,6 +145,9 @@ const Race: React.FC = () => {
   const frontPivotsRef = useRef<TransformNode[]>([]);
   const wheelsRef = useRef<AbstractMesh[]>([]);
 
+  // game state
+  const [isPaused, setIsPaused] = useState(false);
+
   // player
   const [playerHP,    setPlayerHP]    = useState(100);
   const [playerMaxHP] = useState(100);
@@ -227,6 +230,16 @@ const Race: React.FC = () => {
     // 5) Flip the "started" flag so the scene shows
     setStarted(true);
   };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && started) {
+        setIsPaused(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [started]);
 
 
   // scene init: physics + ground + starter cam
@@ -540,6 +553,8 @@ useBeforeRender(() => {
   useEffect(() => {
     if (!scene) return;
     const obs = scene.onBeforeRenderObservable.add(() => {
+      if (!started || isPaused) return; // skip if paused
+
       const root = carRootRef.current;
       const agg = carBodyRef.current;
       const col = colliderMesh;
@@ -630,7 +645,7 @@ useBeforeRender(() => {
 
     });
     return ()=>{scene.onBeforeRenderObservable.remove(obs);}
-  },[scene, colliderMesh, secretCrate]);
+  },[scene, colliderMesh, secretCrate, isPaused, started]);
 
   useEffect(() => {
     const newObjs = [
@@ -745,6 +760,34 @@ useBeforeRender(() => {
         />
       </div>
       <Link to="/" style={{position:"absolute",top:10,right:10,zIndex:999}}>Back</Link>
+      {isPaused && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50,
+              color: 'white',
+              fontFamily: 'sans-serif',
+            }}
+          >
+            <h1>Paused</h1>
+            <button onClick={() => setIsPaused(false)} style={{ margin: '0.5em', padding: '1em 2em' }}>
+              Resume
+            </button>
+            {/* <button onClick={handleSave} style={{ margin: '0.5em', padding: '1em 2em' }}>
+              Save Game
+            </button>
+            <button onClick={handleLoad} style={{ margin: '0.5em', padding: '1em 2em' }}>
+              Load Game
+            </button> */}
+          </div>
+        )}
+
        {/* START OVERLAY */}
       {!started && !isDead && !isWon && (
         <div
