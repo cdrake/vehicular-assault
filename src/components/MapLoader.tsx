@@ -52,6 +52,7 @@ export interface SecretCrateJSON {
 export interface MapData {
   name: string
   description?: string
+  timeLimit?:   number
   primitives: MapPrimitive[]
   objectives?: string[]
   pylons?: PylonJSON[]

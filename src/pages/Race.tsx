@@ -1,7 +1,7 @@
 // src/pages/Race.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Engine, Scene as SceneJSX, useBeforeRender } from "react-babylonjs";
+import { Engine, Scene as SceneJSX } from "react-babylonjs";
 import {
   Color4,
   Scene,
@@ -36,14 +36,14 @@ import HavokPhysics from "@babylonjs/havok";
 
 import { Pylon } from "../components/Pylon";
 import { createMapFromJson } from "../components/MapLoader";
-import type { PylonDefinition } from "../components/MapLoader";
+import type { MapData, PylonDefinition } from "../components/MapLoader";
 import { TextRenderer, FontAsset } from '@babylonjs/addons/msdfText';
 import { PointerEventTypes } from "@babylonjs/core";
 import { Scalar } from "@babylonjs/core/Maths/math.scalar";
 
-import turboTechTakedownMap from "../assets/maps/turbo‑tech‑takedown.json";
-import streetJusticeMap from "../assets/maps/street‑justice.json";
-import deliveryDashMap from "../assets/maps/delivery‑dash.json";
+import turboTechTakedownMap from "../assets/maps/turbo-tech-takedown.json";
+import streetJusticeMap from "../assets/maps/street-justice.json";
+import deliveryDashMap from "../assets/maps/delivery-dash.json";
 
 const ROBOTO_JSON = 'https://assets.babylonjs.com/fonts/roboto-regular.json';
 const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png';
@@ -51,9 +51,9 @@ const ROBOTO_PNG  = 'https://assets.babylonjs.com/fonts/roboto-regular.png';
 const MUSIC_URL = "/vehicular-assault/assets/sounds/joyride_melodies.mp3";
 const START_URL = "/vehicular-assault/assets/sounds/car_start_sound.mp3";
 
-const STORYLINES = ["turbo‑tech‑takedown", "street‑justice", "delivery‑dash"] as const;
+const STORYLINES = ["turbo-tech-takedown", "street-justice", "delivery-dash"] as const;
 type RaceSlug = (typeof STORYLINES)[number];
-const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
+const DEFAULT_RACE: RaceSlug = "turbo-tech-takedown";
 const STORAGE_KEY = 'vehicularAssaultSave';
 const DEFAULT_RADIUS = 10;
 const DEFAULT_HEIGHT_OFFSET = 5;
@@ -73,15 +73,21 @@ interface Checkpoint {
 }
 
 interface SaveData {
+  mapSlug:      RaceSlug;
+  timeLeft?:     number;   // “clock” remaining
+  timeElapsed?:  number;   // how many seconds since the start
+
   car: {
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number; w: number };
     velocity: { x: number; y: number; z: number };
   };
-  playerHP: number;
-  checkpoints: Array<{ id: string; visited: boolean }>;
+
+  playerHP:      number;
+  checkpoints:   Array<{ id: string; visited: boolean }>;
   secretVisited: boolean;
 }
+
 
 function fireThroughReticle(
   scene: Scene,
@@ -140,12 +146,14 @@ const Race: React.FC = () => {
   const selectedRace: RaceSlug = STORYLINES.includes(raw as RaceSlug)
     ? (raw as RaceSlug)
     : DEFAULT_RACE;
-  const mapJson =
-    selectedRace === "street‑justice"
-      ? streetJusticeMap
-      : selectedRace === "delivery‑dash"
-      ? deliveryDashMap
-      : turboTechTakedownMap;
+  const rawParam = (searchParams.get("race") ?? "").toLowerCase() as RaceSlug;
+const jsonSrc =
+  rawParam === "street-justice"    ? streetJusticeMap :
+  rawParam === "delivery-dash"     ? deliveryDashMap :
+                                     turboTechTakedownMap;
+
+// now TS knows what lives in mapJson
+const mapJson = jsonSrc as MapData;
 
   // start
   const [started, setStarted]    = useState(false);
@@ -212,6 +220,8 @@ const Race: React.FC = () => {
   const [secretCrate, setSecretCrate] = useState<Checkpoint| null>(null);
   const checkpointMarkersRef = useRef<Mesh[]>([]);
   const checkpointDiscsRef   = useRef<Mesh[]>([]);
+  const timeLimit = mapJson.timeLimit ?? 0;
+  const [timeLeft, setTimeLeft]     = useState<number>(timeLimit);
 
   const navigate = useNavigate();
   // === handle the “Start” button click ===
@@ -263,74 +273,99 @@ const Race: React.FC = () => {
     }, [started]);
 
     const handleSave = (): void => {
-    if (!carRootRef.current || !carBodyRef.current) {
-      alert('Game not ready to save');
-      return;
-    }
-    const pos = carRootRef.current.getAbsolutePosition();
-    const rot = carRootRef.current.rotationQuaternion!;
-    const vel = carBodyRef.current.body.getLinearVelocity();
+  if (!carRootRef.current || !carBodyRef.current) {
+    alert("Game not ready to save");
+    return;
+  }
 
-    const state: SaveData = {
-      car: {
-        position: { x: pos.x, y: pos.y, z: pos.z },
-        rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
-        velocity: { x: vel.x, y: vel.y, z: vel.z },
-      },
-      playerHP,
-      checkpoints: checkpoints.map(cp => ({ id: cp.id, visited: cp.visited })),
-      secretVisited: secretCrate?.visited ?? false,
-    };
+  const pos = carRootRef.current.getAbsolutePosition();
+  const rot = carRootRef.current.rotationQuaternion!;
+  const vel = carBodyRef.current.body.getLinearVelocity();
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    alert('Game saved');
+  const state: SaveData = {
+    mapSlug:     selectedRace,
+    timeLeft,    
+    timeElapsed: timeLimit - timeLeft,
+
+    car: {
+      position: { x: pos.x, y: pos.y, z: pos.z },
+      rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+      velocity: { x: vel.x, y: vel.y, z: vel.z },
+    },
+
+    playerHP,
+    checkpoints:   checkpoints.map(cp => ({ id: cp.id, visited: cp.visited })),
+    secretVisited: secretCrate?.visited ?? false,
   };
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  alert("Game saved");
+};
+
 
   // 3) Load and reconstruct types
   const handleLoad = (): void => {
-    const json = localStorage.getItem(STORAGE_KEY);
-    if (!json) {
-      alert('No save found');
-      return;
-    }
+  const json = localStorage.getItem(STORAGE_KEY);
+  if (!json) { alert("No save found"); return; }
 
-    let state: SaveData;
-    try {
-      state = JSON.parse(json) as SaveData;
-    } catch {
-      alert('Save data corrupted');
-      return;
-    }
+  let state: SaveData;
+  try {
+    state = JSON.parse(json) as SaveData;
+  } catch {
+    alert("Save data corrupted");
+    return;
+  }
 
-    // restore position
-    const { position, rotation, velocity } = state.car;
-    carRootRef.current.position.set(position.x, position.y, position.z);
-    carRootRef.current.rotationQuaternion!.copyFromFloats(
-      rotation.x, rotation.y, rotation.z, rotation.w
+  // sanity check: same map?
+  if (state.mapSlug !== selectedRace) {
+    console.warn("Save is for a different map, ignoring mapSlug");
+  }
+
+  // restore timer
+  setTimeLeft(state.timeLeft ?? timeLimit);
+
+  // restore car transform & physics
+  carRootRef.current.position.set(
+    state.car.position.x,
+    state.car.position.y,
+    state.car.position.z
+  );
+  carRootRef.current.rotationQuaternion!.copyFromFloats(
+    state.car.rotation.x,
+    state.car.rotation.y,
+    state.car.rotation.z,
+    state.car.rotation.w
+  );
+  carBodyRef.current.body.setLinearVelocity(
+    new Vector3(
+      state.car.velocity.x,
+      state.car.velocity.y,
+      state.car.velocity.z
+    )
+  );
+
+  // restore HP
+  setPlayerHP(state.playerHP);
+  if (carRootRef.current.metadata) {
+    carRootRef.current.metadata.hitpoints = state.playerHP;
+  }
+
+  // restore checkpoints & secret crate
+  setCheckpoints(prev =>
+    prev.map(cp => ({
+      ...cp,
+      visited: state.checkpoints.some(s => s.id === cp.id && s.visited),
+    }))
+  );
+  if (secretCrate) {
+    setSecretCrate(prev =>
+      prev ? { ...prev, visited: state.secretVisited } : prev
     );
-    carBodyRef.current.body.setLinearVelocity(
-      new Vector3(velocity.x, velocity.y, velocity.z)
-    );
+  }
 
-    // restore HP
-    setPlayerHP(state.playerHP);
-    if (carRootRef.current.metadata) {
-      carRootRef.current.metadata.hitpoints = state.playerHP;
-    }
+  alert("Game loaded");
+};
 
-    // restore checkpoints & secret crate
-    setCheckpoints(prev =>
-      prev.map(cp => ({
-        ...cp,
-        visited: state.checkpoints.some(s => s.id === cp.id && s.visited),
-      }))
-    );
-    if (secretCrate) {
-      setSecretCrate(prev => prev ? { ...prev, visited: state.secretVisited } : prev);
-    }
-
-    alert('Game loaded');
-  };
 
   useEffect(() => {
   if (!scene) return;
@@ -553,14 +588,6 @@ const Race: React.FC = () => {
   };
 
 }, [scene, physicsEnabled, mapJson]);
-
-// useBeforeRender(() => {
-//   checkpointDiscsRef.current.forEach((disc, i) => {
-//     const t = performance.now() * 0.005 + i
-//     const s = 1 + 0.2 * Math.sin(t)
-//     disc.scaling.x = disc.scaling.z = s
-//   })
-// });
 
   // load car + physics + input
   useEffect(() => {
@@ -913,6 +940,26 @@ const Race: React.FC = () => {
           }}
         />
       </div>
+      {timeLimit > 0 && (
+        <div
+          style={{
+            position:    'absolute',
+            top:         10,
+            right:       140,        // shift it over from the health bar
+            padding:     '4px 8px',
+            background:  'rgba(0,0,0,0.6)',
+            color:       'white',
+            fontFamily:  'sans-serif',
+            fontSize:    '18px',
+            borderRadius:'4px',
+            zIndex:      999,
+            whiteSpace:  'nowrap',
+          }}
+        >
+          ⏱ {timeLeft}s
+        </div>
+      )}
+
       <Link to="/" style={{position:"absolute",top:10,right:10,zIndex:999}}>Back</Link>
       {isPaused && (
           <div
@@ -963,7 +1010,7 @@ const Race: React.FC = () => {
             <strong>Controls:</strong><br/>
             W / S: Accelerate / Brake<br/>
             A / D: Steer Left / Right<br/>
-            Right‑Click: Fire Projectile<br/>
+            Right-Click: Fire Projectile<br/>
             <strong>Esc:</strong> Pause / Resume
           </p>
           <p>

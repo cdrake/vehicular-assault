@@ -1,11 +1,12 @@
 {
   "name": "Delivery Dash",
   "description": "Navigate busy futuristic streets—clear roadblocks, dodge downed vehicles, and intercept the medical crate in time.",
+  "timeLimit": 120,
   "primitives": [
     {
       "type": "ground",
       "name": "mainGround",
-      "size": { "width": 400, "height": 400 },
+      "size": { "width": 400, "height": 400, "subdivisions": 1 },
       "position": { "x": 0, "y": 0, "z": 0 },
       "material": "concrete",
       "physics": { "mass": 0, "collision": true }
