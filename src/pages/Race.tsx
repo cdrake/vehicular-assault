@@ -53,6 +53,7 @@ const START_URL = "/vehicular-assault/assets/sounds/car_start_sound.mp3";
 const STORYLINES = ["turbo‑tech‑takedown", "street‑justice", "delivery‑dash"] as const;
 type RaceSlug = (typeof STORYLINES)[number];
 const DEFAULT_RACE: RaceSlug = "turbo‑tech‑takedown";
+const STORAGE_KEY = 'vehicularAssaultSave';
 
 const isMobileDevice = () =>
   /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
@@ -63,6 +64,17 @@ interface Checkpoint {
   name: string;
   desc: string;
   visited: boolean;
+}
+
+interface SaveData {
+  car: {
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number; w: number };
+    velocity: { x: number; y: number; z: number };
+  };
+  playerHP: number;
+  checkpoints: Array<{ id: string; visited: boolean }>;
+  secretVisited: boolean;
 }
 
 function fireThroughReticle(
@@ -241,6 +253,75 @@ const Race: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [started]);
 
+  const handleSave = (): void => {
+  if (!carRootRef.current || !carBodyRef.current) {
+    alert('Game not ready to save');
+    return;
+  }
+  const pos = carRootRef.current.getAbsolutePosition();
+  const rot = carRootRef.current.rotationQuaternion!;
+  const vel = carBodyRef.current.body.getLinearVelocity();
+
+  const state: SaveData = {
+    car: {
+      position: { x: pos.x, y: pos.y, z: pos.z },
+      rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+      velocity: { x: vel.x, y: vel.y, z: vel.z },
+    },
+    playerHP,
+    checkpoints: checkpoints.map(cp => ({ id: cp.id, visited: cp.visited })),
+    secretVisited: secretCrate?.visited ?? false,
+  };
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  alert('Game saved');
+};
+
+// 3) Load and reconstruct types
+const handleLoad = (): void => {
+  const json = localStorage.getItem(STORAGE_KEY);
+  if (!json) {
+    alert('No save found');
+    return;
+  }
+
+  let state: SaveData;
+  try {
+    state = JSON.parse(json) as SaveData;
+  } catch {
+    alert('Save data corrupted');
+    return;
+  }
+
+  // restore position
+  const { position, rotation, velocity } = state.car;
+  carRootRef.current.position.set(position.x, position.y, position.z);
+  carRootRef.current.rotationQuaternion!.copyFromFloats(
+    rotation.x, rotation.y, rotation.z, rotation.w
+  );
+  carBodyRef.current.body.setLinearVelocity(
+    new Vector3(velocity.x, velocity.y, velocity.z)
+  );
+
+  // restore HP
+  setPlayerHP(state.playerHP);
+  if (carRootRef.current.metadata) {
+    carRootRef.current.metadata.hitpoints = state.playerHP;
+  }
+
+  // restore checkpoints & secret crate
+  setCheckpoints(prev =>
+    prev.map(cp => ({
+      ...cp,
+      visited: state.checkpoints.some(s => s.id === cp.id && s.visited),
+    }))
+  );
+  if (secretCrate) {
+    setSecretCrate(prev => prev ? { ...prev, visited: state.secretVisited } : prev);
+  }
+
+  alert('Game loaded');
+};
 
   // scene init: physics + ground + starter cam
   const onSceneReady = useCallback(async (s: Scene) => {
@@ -779,12 +860,12 @@ useBeforeRender(() => {
             <button onClick={() => setIsPaused(false)} style={{ margin: '0.5em', padding: '1em 2em' }}>
               Resume
             </button>
-            {/* <button onClick={handleSave} style={{ margin: '0.5em', padding: '1em 2em' }}>
+            <button onClick={handleSave} style={{ margin: '0.5em', padding: '1em 2em' }}>
               Save Game
             </button>
             <button onClick={handleLoad} style={{ margin: '0.5em', padding: '1em 2em' }}>
               Load Game
-            </button> */}
+            </button>
           </div>
         )}
 
