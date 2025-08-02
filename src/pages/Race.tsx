@@ -946,7 +946,8 @@ useBeforeRender(() => {
             <strong>Controls:</strong><br/>
             W / S: Accelerate / Brake<br/>
             A / D: Steer Left / Right<br/>
-            Right‑Click: Fire Projectile
+            Right‑Click: Fire Projectile<br/>
+            <strong>Esc:</strong> Pause / Resume
           </p>
           <p>
               Left click on the canvas to enable controls
